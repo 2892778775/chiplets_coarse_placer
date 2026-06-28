@@ -1,0 +1,14 @@
+Header:
+  version: 3.0 
+  unit: micron
+  precision: 10000
+ChipletDef:
+  MEM:
+    size: [12500, 28000]
+    shrink: 1
+    thickness: 250
+    seal_ring: [20,20,20,20]
+    scribe_line_remaining_width: [75,75,75,75]
+    omap: .\MEM.omap
+    external:
+      3dbo_file: [.\MEM.3dbo]

@@ -1,0 +1,70 @@
+Header:
+  version: 3.0
+  unit: micron
+  precision: 10000
+  include:
+    - CoWoS-L.3dbv
+
+Design:
+  name: CoWoS_L
+
+ChipletInst:
+  u_SOC_0:
+    reference: SOC
+    is_master: true
+  u_SOC_1:
+    reference: SOC
+    is_master: false
+  u_HBM_0:
+    reference: HBM
+    is_master: true
+  u_HBM_1:
+    reference: HBM
+    is_master: false
+  u_Interposer:
+    reference: Interposer
+    is_master: true
+  u_LSI1_0:
+    is_master: true
+    reference: LSI1
+  u_LSI1_1:
+    is_master: false
+    reference: LSI1
+  u_LSI2_0:
+    is_master: true
+    reference: LSI2
+
+Stack:
+  u_SOC_0:
+    loc: [13100, 150]
+    z: 525
+    orient: R0
+  u_SOC_1:
+    loc: [32150, 150]
+    z: 525
+    orient: R90
+  u_HBM_0:
+    loc: [100, 350]
+    z: 525
+    orient: MX_R90
+  u_HBM_1:
+    loc: [51400, 350]
+    z: 525
+    orient: R0
+  u_Interposer:
+    loc: [0, 0]
+    z: 0
+    orient: R0
+  u_LSI1_0:
+    loc: [9275, 8750]
+    z: 250
+    orient: MY_R180
+  u_LSI1_1:
+    loc: [48025, 8750]
+    z: 250
+    orient: R0
+  u_LSI2_0:
+    loc: [29025, 8750]
+    z: 250
+    orient: R0
+  

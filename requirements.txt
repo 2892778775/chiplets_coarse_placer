@@ -1,0 +1,12 @@
+# Core dependencies
+PyYAML>=6.0
+
+# Visualization (floorplan PNG, score table PNG)
+matplotlib>=3.5.0
+
+# Web UI (optional — only needed for Flask frontend)
+Flask>=2.0.0
+flask-cors>=3.0.0
+
+# Testing (optional)
+pytest>=7.0.0
