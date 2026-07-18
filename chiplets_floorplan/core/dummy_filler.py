@@ -11,7 +11,7 @@ User-configurable parameters (API):
 
 import math
 from typing import List, Tuple, Optional
-from .models import DesignModel, ChipletInst, ChipletDef, InstancePose, AABB
+from .models import DesignModel, ChipletInst, ChipletDef, InstancePose, AABB, Flexibility
 from .geometry import GeometryEngine
 
 
@@ -32,15 +32,35 @@ class DummyFiller:
         Returns a list of Dummy Die instances.
         """
         dummy_instances = []
-        
-        # Get all real chiplet bboxes
+
+        # Get all real chiplet bboxes. The base-layer instance (Interposer /
+        # RW) is excluded: dummy dies sit *inside* the base footprint, so the
+        # base itself must not count as occupied space.
         real_bboxes = []
         for inst in self.design.instances:
-            if inst.reference == "Interposer":
+            if self.design.is_base_instance(inst):
                 continue
             chiplet_def = self.design.get_def(inst.reference)
             if chiplet_def and not inst.reference.startswith("Dummy"):
                 real_bboxes.append(inst.global_aabb(chiplet_def))
+
+        # Restrict the fill region to the base-layer footprint so dummy dies
+        # never extend beyond the base and break the enclosure rule (H6).
+        base_inst = self.design.base_instance()
+        if base_inst:
+            base_def = self.design.get_def(base_inst.reference)
+            if base_def:
+                b = base_inst.global_aabb(base_def)
+                x1, y1 = max(mbr.x1, b.x1), max(mbr.y1, b.y1)
+                x2, y2 = min(mbr.x2, b.x2), min(mbr.y2, b.y2)
+                if x2 > x1 and y2 > y1:
+                    mbr = AABB(x1, y1, x2, y2)
+
+        # Seed the dummy index from existing dummies. Instances created here
+        # are only returned to the caller (not appended to the design), so a
+        # local counter is required to keep names/defs unique within this run.
+        self._next_dummy_idx = len([d for d in self.design.instances
+                                    if d.reference.startswith("Dummy")]) + 1
 
         # Identify empty rectangular regions
         empty_regions = self._identify_empty_regions(mbr, real_bboxes)
@@ -166,18 +186,24 @@ class DummyFiller:
         
         return sub_regions
 
+    # Hairline clearance inset on every dummy die. Adjacent empty-region cells
+    # share edges exactly, so without an inset neighboring dummies touch at
+    # x2 == x1; export/re-parse float rounding (4-decimal coordinates) can
+    # then turn the touching pair into a ~1e-12 overlap and trip H1.
+    DUMMY_EDGE_INSET = 1e-3  # um; far above float noise, far below real sizes
+
     def _create_dummy_die(self, region: AABB) -> Optional[ChipletInst]:
         """Create a Dummy Die instance for a given region."""
-        width = region.x2 - region.x1
-        height = region.y2 - region.y1
+        width = (region.x2 - region.x1) - 2 * self.DUMMY_EDGE_INSET
+        height = (region.y2 - region.y1) - 2 * self.DUMMY_EDGE_INSET
         area = width * height
-        
-        if area < self.min_area_threshold:
+
+        if area < self.min_area_threshold or width <= 0 or height <= 0:
             return None
         
-        # Generate a unique dummy name
-        dummy_idx = len([d for d in self.design.instances if d.reference.startswith("Dummy")])
-        dummy_name = f"Dummy_{dummy_idx + 1}"
+        # Generate a unique dummy name (local counter seeded in fill()).
+        dummy_name = f"Dummy_{self._next_dummy_idx}"
+        self._next_dummy_idx += 1
         
         # Create chiplet def if not exists
         if dummy_name not in self.design.chiplet_defs:
@@ -195,9 +221,8 @@ class DummyFiller:
             name=instance_name,
             reference=dummy_name,
             is_master=True,
-            pose=InstancePose(x=region.x1, y=region.y1, z=0),
+            pose=InstancePose(x=region.x1 + self.DUMMY_EDGE_INSET,
+                              y=region.y1 + self.DUMMY_EDGE_INSET, z=0),
             flexibility=Flexibility(status="fixed", shift=False, rotate=False, flip=False, resize=False)
         )
         return dummy_inst
-
-from .models import Flexibility

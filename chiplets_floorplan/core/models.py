@@ -247,10 +247,39 @@ class DesignModel:
         """Return instances whose reference contains the given type name."""
         return [inst for inst in self.instances if type_name in inst.reference]
 
+    def reference_def_name(self) -> Optional[str]:
+        """Name of the base (reference layer) chiplet definition.
+
+        Returns "Interposer" when such a def exists (CoWoS-style input);
+        otherwise falls back to the largest-area chiplet def, which in
+        CoW (Chip-on-Wafer) designs is the reconstituted-wafer base (e.g. "RW").
+        """
+        if "Interposer" in self.chiplet_defs:
+            return "Interposer"
+        if not self.chiplet_defs:
+            return None
+        return max(
+            self.chiplet_defs.values(),
+            key=lambda d: d.width * d.height
+        ).name
+
+    def is_base_instance(self, inst: ChipletInst) -> bool:
+        """True if the instance belongs to the base (reference) layer."""
+        ref = self.reference_def_name()
+        return ref is not None and inst.reference == ref
+
+    def base_instance(self) -> Optional[ChipletInst]:
+        """Return the first base-layer instance, if any."""
+        for inst in self.instances:
+            if self.is_base_instance(inst):
+                return inst
+        return None
+
     def mbr_of_instances(self, exclude_refs: Optional[Set[str]] = None) -> AABB:
-        """Compute MBR of all instances (excluding Interposer and optional refs)."""
+        """Compute MBR of all instances (excluding the base layer and optional refs)."""
         if exclude_refs is None:
-            exclude_refs = {"Interposer"}
+            base = self.reference_def_name()
+            exclude_refs = {base} if base else set()
         bboxes = []
         for inst in self.instances:
             if inst.reference in exclude_refs:

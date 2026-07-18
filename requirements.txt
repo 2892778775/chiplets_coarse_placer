@@ -1,10 +1,13 @@
-# Core dependencies
+# Core: 3Dblox YAML parsing.
+# Optional — chiplets_floorplan/core/simple_yaml.py is used automatically
+# as a fallback when PyYAML is not installed.
 PyYAML>=6.0
 
-# Visualization (floorplan PNG, score table PNG)
+# Visualization: floorplan.png and score_table.png generation.
+# Only needed for image outputs (skip with --no-images).
 matplotlib>=3.5.0
 
-# Web UI (optional — only needed for Flask frontend)
+# Web UI (optional — only needed for chiplets_floorplan/web/app.py)
 Flask>=2.0.0
 flask-cors>=3.0.0
 

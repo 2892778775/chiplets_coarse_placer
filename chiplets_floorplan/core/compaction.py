@@ -36,33 +36,44 @@ class Compaction:
 
     def compute_interposer_origin(self) -> tuple:
         """
-        Compute the origin (x, y) of the Interposer such that all chiplets
-        are enclosed with the specified margin.
-        Returns (x, y).
+        Compute the origin (x, y) of the base layer such that it is centered
+        on the chiplet MBR. For a resizable Interposer this is equivalent to
+        (mbr.x1 - enclosure, mbr.y1 - enclosure); for a fixed-size base (RW)
+        centering keeps hard rule H6 satisfied.
         """
         mbr = self.design.mbr_of_instances()
-        
-        x = mbr.x1 - self.min_enclosure
-        y = mbr.y1 - self.min_enclosure
-        
-        return (x, y)
+        width, height = self.compute_interposer_size()
+
+        # If the base def exists and will NOT be resized (fixed base like RW),
+        # center it on the MBR using its own size.
+        if not self.design.interposer:
+            base_ref = self.design.reference_def_name()
+            base_def = self.design.get_def(base_ref) if base_ref else None
+            if base_def:
+                width, height = base_def.width, base_def.height
+
+        mbr_cx = (mbr.x1 + mbr.x2) / 2.0
+        mbr_cy = (mbr.y1 + mbr.y2) / 2.0
+        return (mbr_cx - width / 2.0, mbr_cy - height / 2.0)
 
     def update_interposer(self) -> None:
         """
-        Update the Interposer chiplet definition in the design model
-        with the computed size and origin.
+        Update the base layer (Interposer / RW) with the computed size and origin.
+
+        When an explicit Interposer def exists, its size is updated to the
+        compacted size. For CoW designs with a fixed base def (e.g. RW), only
+        the base instance is repositioned so it encloses the placement with
+        the enclosure margin; the def size is left untouched.
         """
-        if not self.design.interposer:
-            return
-        
-        width, height = self.compute_interposer_size()
         origin_x, origin_y = self.compute_interposer_origin()
-        
-        self.design.interposer.size = (width, height)
-        
-        # Update Interposer instance position if it exists
+
+        if self.design.interposer:
+            width, height = self.compute_interposer_size()
+            self.design.interposer.size = (width, height)
+
+        # Update base-layer instance position if it exists
         for inst in self.design.instances:
-            if inst.reference == "Interposer":
+            if self.design.is_base_instance(inst):
                 inst.pose.x = origin_x
                 inst.pose.y = origin_y
                 break

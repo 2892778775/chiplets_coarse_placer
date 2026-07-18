@@ -46,6 +46,11 @@ class ConstraintChecker:
     def __init__(self, design: DesignModel, weights: Optional[Dict[str, float]] = None):
         self.design = design
         self.weights = weights or DEFAULT_WEIGHTS.copy()
+        self._base_ref = design.reference_def_name()
+
+    def _is_base(self, inst: ChipletInst) -> bool:
+        """Check if an instance is on the base/reference layer (Interposer or RW)."""
+        return self._base_ref is not None and inst.reference == self._base_ref
 
     def check_all(self) -> ViolationReport:
         """Run all hard and soft rule checks, return a ViolationReport."""
@@ -92,7 +97,7 @@ class ConstraintChecker:
     def _check_no_overlap(self) -> List[str]:
         """H1: No two chiplets may overlap in XY plane (only if on same Z layer)."""
         violations = []
-        instances = [inst for inst in self.design.instances if not _is_interposer(inst)]
+        instances = [inst for inst in self.design.instances if not self._is_base(inst)]
         for i in range(len(instances)):
             def_i = self.design.get_def(instances[i].reference)
             if not def_i:
@@ -220,13 +225,14 @@ class ConstraintChecker:
         Does NOT apply to chiplet pairs that have a direct D2D connection (those are handled by H4).
         """
         violations = []
-        instances = [inst for inst in self.design.instances if not _is_interposer(inst)]
+        instances = [inst for inst in self.design.instances if not self._is_base(inst)]
         
-        # Build set of chiplet pairs with direct D2D connections (excluding LSI-bridged)
+        # Build set of chiplet pairs with direct D2D connections.
+        # LSI-bridged pairs are included as well: in CoW designs the two top
+        # dies of a bridged connection must directly abut (the LSI sits at a
+        # lower Z layer and does not interfere), so H5 spacing is waived.
         d2d_pairs = set()
         for conn in self.design.d2d_connections:
-            if conn.has_lsi:
-                continue
             d2d_pairs.add((conn.source_inst, conn.target_inst))
             d2d_pairs.add((conn.target_inst, conn.source_inst))
         
@@ -268,7 +274,7 @@ class ConstraintChecker:
         
         bboxes = []
         for inst in self.design.instances:
-            if _is_interposer(inst):
+            if self._is_base(inst):
                 continue
             def_ = self.design.get_def(inst.reference)
             if def_:
@@ -281,16 +287,18 @@ class ConstraintChecker:
         mbr_cx = (mbr.x1 + mbr.x2) / 2.0
         mbr_cy = (mbr.y1 + mbr.y2) / 2.0
         
-        ip_inst = self.design.get_instance(INTERPOSER_REF)
-        if ip_inst:
-            ip_def = self.design.get_def(ip_inst.reference)
-            if ip_def:
-                ip_aabb = ip_inst.global_aabb(ip_def)
-                ip_cx, ip_cy = ip_aabb.center
+        # Reference center: prefer the actual base instance's AABB center
+        # (u_Interposer / uRW), otherwise fall back to the base def size.
+        base_inst = self.design.base_instance()
+        if base_inst:
+            base_def = self.design.get_def(base_inst.reference)
+            if base_def:
+                ip_cx, ip_cy = base_inst.global_aabb(base_def).center
             else:
                 return []
         else:
-            ip_def = self.design.get_def(INTERPOSER_REF)
+            base_ref = self._base_ref
+            ip_def = self.design.get_def(base_ref) if base_ref else None
             if not ip_def:
                 return []
             ip_cx = ip_def.width / 2.0
@@ -361,7 +369,7 @@ class ConstraintChecker:
         is_y = axis == 'y'
         
         instances = [inst for inst in self.design.instances
-                       if not _is_interposer(inst) and not _is_lsi(inst)]
+                       if not self._is_base(inst) and not _is_lsi(inst)]
         
         if not instances:
             formula = f"1 - avg(c{axis}_i - center_{axis}) / (MBR.{'height' if is_y else 'width'}/2)"
@@ -416,7 +424,7 @@ class ConstraintChecker:
         targets = []
         soc_soics = []
         for inst in self.design.instances:
-            if _is_interposer(inst):
+            if self._is_base(inst):
                 continue
             ref_upper = inst.reference.upper()
             if any(kw in ref_upper for kw in keywords):

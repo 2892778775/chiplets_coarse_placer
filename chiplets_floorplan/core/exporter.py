@@ -17,6 +17,17 @@ from .models import PlacementSolution, DesignModel, ChipletInst, ChipletDef
 class Exporter:
     """Export a PlacementSolution to 3Dblox files."""
 
+    @staticmethod
+    def _fmt_coord(value: float) -> str:
+        """Format a coordinate, preserving sub-micron precision when needed.
+
+        Integer truncation would shift LSI centers off the exact D2D PHY
+        midpoint (hard rule H7, tolerance 1e-6), so keep up to 4 decimals.
+        """
+        if abs(value - round(value)) < 1e-9:
+            return str(int(round(value)))
+        return f"{value:.4f}".rstrip("0").rstrip(".")
+
     def __init__(self, solution: PlacementSolution):
         self.solution = solution
         self.design = solution.design
@@ -40,12 +51,10 @@ class Exporter:
         self._write_main_3dbv(dbv_path, name)
         exported_files.append(dbv_path)
 
-        # 3. Export individual chiplet .3dbv, .3dbo, .omap files
+        # 3. Export individual chiplet .3dbv, .3dbo, .omap files.
+        # Dummy defs must be exported as well: dummy instances are listed in
+        # the main .3dbx, so their references must resolve on re-parse.
         for chiplet_name, chiplet_def in self.design.chiplet_defs.items():
-            if chiplet_name.startswith("Dummy"):
-                # Skip dummy chiplet definitions in individual files
-                continue
-            
             chiplet_dbv = os.path.join(output_dir, f"{chiplet_name}.3dbv")
             self._write_chiplet_3dbv(chiplet_dbv, chiplet_def)
             exported_files.append(chiplet_dbv)
@@ -83,8 +92,8 @@ class Exporter:
             f.write("\nStack:\n")
             for inst in self.design.instances:
                 f.write(f"  {inst.name}:\n")
-                f.write(f"    loc: [{int(inst.pose.x)}, {int(inst.pose.y)}]\n")
-                f.write(f"    z: {int(inst.pose.z)}\n")
+                f.write(f"    loc: [{self._fmt_coord(inst.pose.x)}, {self._fmt_coord(inst.pose.y)}]\n")
+                f.write(f"    z: {self._fmt_coord(inst.pose.z)}\n")
                 # Combine flip, mz, and orientation into a single orient value
                 # Examples: MX_MZ_R90, MY_R0, MZ_R180, R0
                 parts = []
@@ -105,8 +114,7 @@ class Exporter:
             f.write("  precision: 1000\n")
             f.write("  include:\n")
             for chiplet_name in self.design.chiplet_defs:
-                if not chiplet_name.startswith("Dummy"):
-                    f.write(f"  - {chiplet_name}.3dbv\n")
+                f.write(f"  - {chiplet_name}.3dbv\n")
 
     def _write_chiplet_3dbv(self, path: str, chiplet_def: ChipletDef) -> None:
         """Write a single chiplet .3dbv file."""

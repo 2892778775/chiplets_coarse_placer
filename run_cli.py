@@ -3,7 +3,8 @@
 3D IC Chiplets Coarse-Placement System — CLI Automation
 
 Usage:
-    python run_cli.py --dbx CoWoS_S/CoWoS-S.3dbx --connection CoWoS_S/D2D.connection --output output/ --algorithm Expert
+    python run_cli.py --3dbx CoWoS_S/CoWoS-S.3dbx --connection CoWoS_S/D2D.connection --placer expert --output output/
+    python run_cli.py --dbx CoWoS_L/CoWoS-L.3dbx --connection CoWoS_L/D2D.connection --algorithm SA --output out_l/
 
 Outputs:
     - 3Dblox files (.3dbx, .3dbv, .3dbo, .omap)
@@ -48,11 +49,12 @@ Examples:
   python run_cli.py --dbx design.3dbx --output output/ --skip-dummy --skip-d2d
         """
     )
-    parser.add_argument("--dbx", required=True, help="Path to the top-level .3dbx input file")
+    parser.add_argument("--dbx", "--3dbx", dest="dbx", required=True,
+                        help="Path to the top-level .3dbx input file")
     parser.add_argument("--connection", default="", help="Path to D2D connection file (.connection)")
     parser.add_argument("--output", default="output", help="Output directory for all artifacts")
-    parser.add_argument("--algorithm", choices=["SA", "Expert"], default="Expert",
-                        help="Placement algorithm: SA (Simulated Annealing) or Expert (rule-based)")
+    parser.add_argument("--algorithm", "--placer", dest="algorithm", choices=["SA", "Expert", "sa", "expert"],
+                        default="Expert", help="Placement algorithm: SA (Simulated Annealing) or Expert (rule-based)")
     parser.add_argument("--sa-iterations", type=int, default=5000, help="SA iterations (only for SA algorithm)")
     parser.add_argument("--enclosure", type=float, default=500.0, help="Minimum interposer enclosure (um)")
     parser.add_argument("--dummy-min-area", type=float, default=1_000_000, help="Dummy die minimum area (um^2)")
@@ -67,6 +69,8 @@ Examples:
     parser.add_argument("--seed", type=int, default=None, help="Random seed for SA algorithm reproducibility")
     parser.add_argument("--quiet", action="store_true", help="Suppress non-essential console output")
     args = parser.parse_args()
+    # Normalize algorithm name (accept expert/sa in any case)
+    args.algorithm = "SA" if args.algorithm.upper() == "SA" else "Expert"
 
     def log(msg):
         if not args.quiet:
@@ -198,14 +202,24 @@ Examples:
     solution.interposer_size = (w, h)
     log(f"  Interposer size: {w:.0f} x {h:.0f} um")
 
+    # Re-check after the interposer update: the enclosure rule (H6) depends
+    # on the final base-layer geometry, so the SUMMARY must reflect a fresh
+    # check rather than the pre-compaction report.
+    checker = ConstraintChecker(design)
+    report = checker.check_all()
+    solution.score = report.total_score
+    solution.report = report
+    log(f"  Score after compaction: {solution.score:.4f} (valid: {report.is_valid})")
+
     # ------------------------------------------------------------------
     # 6. Export artifacts
     # ------------------------------------------------------------------
     log("\n[6/6] Exporting artifacts...")
 
     # 6a. 3Dblox files
+    design_name = design.name or os.path.splitext(os.path.basename(args.dbx))[0]
     exporter = Exporter(solution)
-    blox_files = exporter.export(args.output, design.name)
+    blox_files = exporter.export(args.output, design_name)
     log(f"  3Dblox files: {len(blox_files)}")
     for f in blox_files:
         log(f"    {os.path.basename(f)}")
