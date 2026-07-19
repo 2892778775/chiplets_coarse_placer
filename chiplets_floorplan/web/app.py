@@ -130,6 +130,7 @@ def load_design():
         data = request.get_json()
         dbx_path = data.get('dbx_path', '')
         connection_content = data.get('connection_content', '')
+        pi_content = data.get('pi_content', '')
         
         if not dbx_path or not os.path.exists(dbx_path):
             return jsonify({'success': False, 'error': 'Invalid or missing .3dbx file path'})
@@ -140,6 +141,10 @@ def load_design():
         # Parse D2D connections if provided by user upload
         if connection_content:
             design.d2d_connections = parser.parse_connections(connection_content)
+        
+        # Parse LSI.PI affinity file if provided by user upload
+        if pi_content:
+            design.pi_affinity = parser.parse_pi(pi_content)
         
         state.design = design
         state.dbx_path = dbx_path
@@ -465,6 +470,30 @@ def upload_connection():
         return jsonify({'success': False, 'error': str(e)})
 
 # ------------------------------------------------------------------
+# Upload LSI.PI affinity file
+# ------------------------------------------------------------------
+
+@app.route('/api/upload_pi', methods=['POST'])
+def upload_pi():
+    try:
+        if not state.design:
+            return jsonify({'success': False, 'error': 'No design loaded'})
+        
+        data = request.get_json() or {}
+        content = data.get('content', '')
+        
+        parser = Parser()
+        affinity = parser.parse_pi(content)
+        state.design.pi_affinity = affinity
+        return jsonify({
+            'success': True,
+            'pi_count': len(affinity)
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)})
+
+# ------------------------------------------------------------------
 # Generate LSI
 # ------------------------------------------------------------------
 
@@ -592,6 +621,7 @@ def load_design_content():
         data = request.get_json() or {}
         dbx_content = data.get('dbx_content', '')
         connection_content = data.get('connection_content', '')
+        pi_content = data.get('pi_content', '')
         
         if not dbx_content:
             return jsonify({'success': False, 'error': 'No .3dbx content provided'})
@@ -603,6 +633,10 @@ def load_design_content():
         # Parse D2D connections if provided
         if connection_content:
             design.d2d_connections = parser.parse_connections(connection_content)
+        
+        # Parse LSI.PI affinity file if provided
+        if pi_content:
+            design.pi_affinity = parser.parse_pi(pi_content)
         
         state.design = design
         state.dbx_path = 'uploaded'

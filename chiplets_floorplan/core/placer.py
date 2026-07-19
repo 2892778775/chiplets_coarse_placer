@@ -1461,32 +1461,39 @@ class ExpertPlacer(BasePlacer):
             xs.update([a.x1 - mm - w, a.x2 + mm, a.x1, a.x2 - w])
             ys.update([a.y1 - mm - h, a.y2 + mm, a.y1, a.y2 - h])
 
-        best = None  # (not_abutting, out_of_group, y, x)
+        best = None  # (-abut_count, out_of_group, y, x)
         for cx in xs:
             for cy in ys:
                 if cx < area.x1 or cy < area.y1 or cx + w > area.x2 or cy + h > area.y2:
                     continue
                 cand = AABB(cx, cy, cx + w, cy + h)
                 ok = True
-                abuts = False
+                abut_count = 0
                 for a, m_o in placed:
                     mm = m_i + m_o + SPACING_EPSILON
                     if cand.inflate(mm).overlaps(a):
                         ok = False
                         break
                     # Abutment test: feasibility already guarantees gap >= mm,
-                    # so if the box inflated by slightly *more* than mm
-                    # touches the neighbor, the gap lies in [mm, mm + tol] —
-                    # the candidate abuts that neighbor.
-                    if not abuts and cand.inflate(mm + ABUT_TOLERANCE).overlaps(a):
-                        abuts = True
+                    # so a side is abutting a neighbor when that side's gap
+                    # lies in [mm, mm + tol] and the two boxes overlap on the
+                    # perpendicular axis. Every abutting neighbor is counted
+                    # so that pocket positions (abutting on two or more
+                    # sides) beat single-side ones.
+                    x_ov = cand.x1 < a.x2 and a.x1 < cand.x2
+                    y_ov = cand.y1 < a.y2 and a.y1 < cand.y2
+                    if (y_ov and (abs((cand.x2 + mm) - a.x1) <= ABUT_TOLERANCE or
+                                  abs((a.x2 + mm) - cand.x1) <= ABUT_TOLERANCE)) or \
+                       (x_ov and (abs((cand.y2 + mm) - a.y1) <= ABUT_TOLERANCE or
+                                  abs((a.y2 + mm) - cand.y1) <= ABUT_TOLERANCE)):
+                        abut_count += 1
                 if not ok:
                     continue
-                # Free isolated instances must abut placed instances whenever
-                # possible (no floating pockets with gaps).
+                # Free isolated instances must abut as many placed neighbors
+                # as possible (no floating pockets with gaps).
                 in_group = (group_aabb.x1 <= cx and cx + w <= group_aabb.x2 and
                             group_aabb.y1 <= cy and cy + h <= group_aabb.y2)
-                best_key = (0 if abuts else 1, 0 if in_group else 1, cy, cx)
+                best_key = (-abut_count, 0 if in_group else 1, cy, cx)
                 if best is None or best_key < best[0]:
                     best = (best_key, cx, cy)
 

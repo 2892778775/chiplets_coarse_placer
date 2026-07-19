@@ -176,7 +176,7 @@ the exported files reproduces the reported score.
 |------|-----------|-----------------|-------------|---------------|
 | **CoWoS_S** (bundled) | 3 + Interposer | 2 (direct) | 0 | Valid, score 0.9333 |
 | **CoWoS_L** (bundled) | 7 + Interposer | 3 (LSI-bridged) | 3 | Valid, score 0.9666 |
-| **All-In-One (CoW)** | 44 + RW wafer base | 18 (LSI-bridged) | 18 | Valid, score 0.9280 |
+| **All-In-One (CoW)** | 44 + RW wafer base | 18 (LSI-bridged) | 18 | Valid, score 0.9358 |
 
 All cases pass every hard rule with the `expert` placer, which is fully
 deterministic: repeated runs produce identical layouts and scores. The CoW
@@ -184,7 +184,8 @@ case also reads an `LSI.PI` affinity file (one `child,parent` pair per line)
 that binds its eDTC / IVR isolated chiplets to their dominant SoIC die:
 PI-bound chiplets are placed inside the dominant's footprint (clear of LSI
 bridges and of each other), while the remaining free isolated chiplets
-(IOD2) abut their already-placed neighbors.
+(IOD2) abut their already-placed neighbors on as many sides as possible
+(e.g. one side against IOD1 and another against HBM).
 
 ## Project Structure
 
@@ -202,6 +203,7 @@ bridges and of each other), while the remaining free isolated chiplets
 │   │   └── simple_yaml.py     # Fallback YAML parser (when PyYAML is absent)
 │   ├── viz.py                 # floorplan.png / score_table.png / score.json / score.csv
 │   └── web/app.py             # Optional Flask Web UI (python -m chiplets_floorplan.web.app)
+│                              # Uploads: .3dbx, D2D.connection, LSI.PI affinity file
 ├── run_cli.py                 # CLI entry point
 ├── CLI_README.md              # CLI guide (Chinese)
 ├── CoWoS_S/                   # Bundled test case

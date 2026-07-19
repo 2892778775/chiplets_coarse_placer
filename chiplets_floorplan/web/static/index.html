@@ -77,8 +77,13 @@
             <button class="btn btn-primary" onclick="document.getElementById('connectionFileInput').click()">
                 <span>🔗</span> Upload D2D.connection
             </button>
+            <input type="file" id="piFileInput" accept=".pi,.PI" style="display:none" onchange="onPiSelected(this)">
+            <button class="btn btn-primary" onclick="document.getElementById('piFileInput').click()">
+                <span>🧩</span> Upload LSI.PI
+            </button>
             <div class="file-path-display" id="filePathDisplay">No file loaded</div>
             <div class="file-path-display" id="connectionPathDisplay" style="max-width:300px">No .connection file loaded</div>
+            <div class="file-path-display" id="piPathDisplay" style="max-width:200px">No .PI file loaded</div>
             <button class="btn btn-success" onclick="exportDesign()">
                 <span>📥</span> Export 3Dblox
             </button>

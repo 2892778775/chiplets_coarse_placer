@@ -419,6 +419,9 @@ function onDbxFileSelected(input) {
         if (pendingConnectionContent) {
             payload.connection_content = pendingConnectionContent;
         }
+        if (pendingPiContent) {
+            payload.pi_content = pendingPiContent;
+        }
         fetch('/api/load_design_content', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -579,6 +582,8 @@ function fallbackExportDownload() {
 
 let pendingConnectionContent = '';
 let pendingConnectionName = '';
+let pendingPiContent = '';
+let pendingPiName = '';
 
 function onConnectionSelected(input) {
     const file = input.files[0];
@@ -606,6 +611,37 @@ function onConnectionSelected(input) {
             });
         } else {
             showMessage('D2D.connection selected: ' + file.name + '. Click "Import 3DBX" to load together.', 'info');
+        }
+    };
+    reader.readAsText(file);
+}
+
+function onPiSelected(input) {
+    const file = input.files[0];
+    if (!file) return;
+    pendingPiName = file.name;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        pendingPiContent = e.target.result;
+        document.getElementById('piPathDisplay').textContent = file.name;
+        
+        if (chipletInstances.length > 0) {
+            fetch('/api/upload_pi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: pendingPiContent, filename: file.name })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    showMessage(data.pi_count + ' PI affinity entries loaded', 'success');
+                    refreshData();
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            }).catch(err => {
+                showMessage('LSI.PI upload failed: ' + err.message, 'error');
+            });
+        } else {
+            showMessage('LSI.PI selected: ' + file.name + '. Click "Import 3DBX" to load together.', 'info');
         }
     };
     reader.readAsText(file);
