@@ -1,0 +1,12 @@
+Header:
+  version: 3.0
+  unit: micron
+  precision: 10000
+
+ChipletDef:
+  IOD2:
+    size: [27700, 13200]
+    shrink: 0.98
+    thickness: 140
+    seal_ring: [21.6,21.6,21.6,21.6]
+    scribe_line_remaining_width: [76.8, 76.8, 76.8, 76.8]

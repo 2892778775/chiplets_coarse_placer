@@ -1,0 +1,11 @@
+Header:
+  version: 3.0
+  unit: micron
+  precision: 10000
+ChipletDef:
+  Interposer:
+    size: [64000, 35000]
+    shrink: 1
+    thickness: 500
+    seal_ring: [0,0,0,0]
+    scribe_line_remaining_width: [0,0,0,0]

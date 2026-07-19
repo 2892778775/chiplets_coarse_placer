@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>3D IC Chiplets Floorplan System v2</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1920px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 20px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 24px; font-weight: 600; }
+        .toolbar { background: #f8f9fa; padding: 15px 20px; border-bottom: 1px solid #e9ecef; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        .toolbar .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:hover { background: #0056b3; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,123,255,0.3); }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #1e7e34; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(40,167,69,0.3); }
+        .btn-warning { background: #ffc107; color: #333; }
+        .btn-warning:hover { background: #e0a800; transform: translateY(-2px); }
+        .btn-info { background: #17a2b8; color: white; }
+        .btn-info:hover { background: #138496; transform: translateY(-2px); }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; transform: translateY(-2px); }
+        .file-path-display { padding: 8px 12px; background: #e9ecef; border-radius: 6px; font-size: 13px; color: #495057; max-width: 500px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .main-content { display: flex; height: calc(100vh - 160px); }
+        .canvas-section { flex: 0.45; padding: 20px; border-right: 1px solid #e9ecef; display: flex; flex-direction: column; }
+        .canvas-top-controls { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; justify-content: flex-end; }
+        .canvas-top-controls .btn { padding: 8px 14px; font-size: 13px; }
+        .canvas-main-area { flex: 1; display: flex; gap: 15px; }
+        .canvas-side-controls { display: flex; flex-direction: column; gap: 8px; width: 70px; }
+        .canvas-side-controls .btn { padding: 8px; font-size: 12px; flex-direction: column; align-items: center; gap: 2px; }
+        .canvas-container { flex: 1; background: #f5f5f5; border-radius: 12px; overflow: hidden; position: relative; border: 2px solid #dee2e6; }
+        #canvas { width: 100%; height: 100%; cursor: crosshair; }
+        .tables-section { flex: 0.55; display: flex; flex-direction: column; overflow: hidden; }
+        .table-tabs { display: flex; background: #f8f9fa; border-bottom: 1px solid #e9ecef; }
+        .table-tabs button { padding: 12px 20px; border: none; background: none; cursor: pointer; font-size: 14px; font-weight: 500; color: #6c757d; transition: all 0.3s ease; border-bottom: 2px solid transparent; }
+        .table-tabs button.active { color: #007bff; border-bottom-color: #007bff; background: white; }
+        .table-tabs button:hover { color: #0056b3; background: rgba(0,123,255,0.05); }
+        .table-container { flex: 1; overflow: auto; padding: 15px; }
+        .table-footer { padding: 15px; border-top: 1px solid #e9ecef; display: flex; justify-content: flex-end; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .data-table th, .data-table td { padding: 8px 12px; border: 1px solid #dee2e6; text-align: left; }
+        .data-table th { background: #f8f9fa; font-weight: 600; color: #495057; position: sticky; top: 0; z-index: 1; }
+        .data-table tr:hover { background: rgba(0,123,255,0.05); }
+        .data-table input { width: 100%; padding: 4px 8px; border: 1px solid #ced4da; border-radius: 4px; font-size: 12px; }
+        .score-panel { padding: 15px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 15px; }
+        .score-valid { font-weight: bold; padding: 4px 8px; border-radius: 4px; display: inline-block; }
+        .score-valid.valid { background: #d4edda; color: #155724; }
+        .score-valid.invalid { background: #f8d7da; color: #721c24; }
+        .score-total { font-size: 20px; font-weight: bold; margin: 8px 0; }
+        .violations h4, .soft-scores h4 { margin: 10px 0 5px; font-size: 14px; }
+        .violations ul, .soft-scores ul { padding-left: 20px; font-size: 13px; }
+        .violations li { color: #721c24; }
+        .soft-scores li { color: #155724; }
+        .message-area { background: #e8f5e9; padding: 10px 15px; border-top: 1px solid #c8e6c9; font-size: 13px; color: #2e7d32; display: none; }
+        .message-area.error { background: #ffebee; border-color: #ef9a9a; color: #c62828; }
+        .message-area.success { background: #e8f5e9; border-color: #c8e6c9; color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>3D IC Chiplets Floorplan System v2</h1>
+            <div id="design-name" style="font-size: 16px; opacity: 0.9;"></div>
+        </div>
+
+        <div class="toolbar">
+            <button class="btn btn-primary" onclick="document.getElementById('dbxFileInput').click()">
+                <span>📁</span> Import 3DBX
+            </button>
+            <input type="file" id="dbxFileInput" accept=".3dbx" style="display:none" onchange="onDbxFileSelected(this)">
+            <input type="file" id="connectionFileInput" accept=".connection" style="display:none" onchange="onConnectionSelected(this)">
+            <button class="btn btn-primary" onclick="document.getElementById('connectionFileInput').click()">
+                <span>🔗</span> Upload D2D.connection
+            </button>
+            <input type="file" id="piFileInput" accept=".pi,.PI" style="display:none" onchange="onPiSelected(this)">
+            <button class="btn btn-primary" onclick="document.getElementById('piFileInput').click()">
+                <span>🧩</span> Upload LSI.PI
+            </button>
+            <div class="file-path-display" id="filePathDisplay">No file loaded</div>
+            <div class="file-path-display" id="connectionPathDisplay" style="max-width:300px">No .connection file loaded</div>
+            <div class="file-path-display" id="piPathDisplay" style="max-width:200px">No .PI file loaded</div>
+            <button class="btn btn-success" onclick="exportDesign()">
+                <span>📥</span> Export 3Dblox
+            </button>
+        </div>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <div class="canvas-top-controls">
+                    <button class="btn btn-primary" onclick="runPlacement()">⚡ Run Placement</button>
+                    <button class="btn btn-warning" onclick="doCompaction()">📐 Compaction</button>
+                </div>
+                <div class="canvas-main-area">
+                    <div class="canvas-side-controls">
+                        <button class="btn btn-primary" onclick="rotateSelected(90)" title="Rotate +90°">↻ R+90</button>
+                        <button class="btn btn-primary" onclick="rotateSelected(-90)" title="Rotate -90°">↺ R-90</button>
+                        <button class="btn btn-info" onclick="flipSelected('MX')" title="Flip MX">⇄ F-MX</button>
+                        <button class="btn btn-info" onclick="flipSelected('MY')" title="Flip MY">⇅ F-MY</button>
+                        <button class="btn btn-info" onclick="flipSelected('MZ')" title="Flip MZ (face up/down)">↔ F-MZ</button>
+                        <button class="btn btn-danger" onclick="deleteSelected()" title="Delete">🗑️ Del</button>
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="canvas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tables-section">
+                <div class="table-tabs">
+                    <button class="active" onclick="showTab('chiplet-defs', this)">Chiplet Definitions</button>
+                    <button onclick="showTab('chiplet-instances', this)">Chiplet Instances</button>
+                    <button onclick="showTab('score', this)">Score</button>
+                </div>
+                <div class="table-container">
+                    <table id="chiplet-defs-table" class="data-table">
+                        <thead><tr><th>Name</th><th>Size</th><th>Thickness</th><th>Shrink</th><th>Seal Ring</th><th>Scribe Line</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                    <table id="chiplet-instances-table" class="data-table" style="display: none;">
+                        <thead><tr><th>Visible</th><th>Name</th><th>Module</th><th>Group</th><th>Is Ref</th><th>X</th><th>Y</th><th>Z</th><th>Flip</th><th>MZ</th><th>Rotate</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                    <div id="score-panel" class="score-panel" style="display: none;">
+                        <p>No score data. Run placement to see score.</p>
+                    </div>
+                </div>
+                <div class="table-footer">
+                    <button class="btn btn-info" onclick="refreshData()">🔄 Refresh</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="message-area" id="messageArea"></div>
+    </div>
+
+    <script>
+        // Cache-bust: append timestamp to JS URL to force reload
+        var jsUrl = '/static/js/floorplan.js?t=' + new Date().getTime();
+        document.write('<script src="' + jsUrl + '"><\/script>');
+    </script>
+</body>
+</html>

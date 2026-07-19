@@ -1,0 +1,10 @@
+hbm_phy hbmphy_0_0 1000 2400 R0
+hbm_phy hbmphy_0_1 1000 21400 R0
+hbm_phy hbmphy_0_2 1000 40400 R0
+hbm_phy hbmphy_1_0 53700 2400 R180
+hbm_phy hbmphy_1_1 53700 21400 R180
+hbm_phy hbmphy_1_2 53700 40400 R180
+ucie_sp uciesp_0_0 12000 1300 R0
+ucie_sp uciesp_0_1 36700 1300 R0
+ucie_sp uciesp_1_0 12000 51800 R180
+ucie_sp uciesp_1_1 36700 51800 R180

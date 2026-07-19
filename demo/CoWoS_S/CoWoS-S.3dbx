@@ -1,0 +1,38 @@
+Header:
+  version: 3.0
+  unit: micron
+  precision: 10000
+  include:
+    - CoWoS-S.3dbv
+Design:
+  name: CoWoS_S
+ChipletInst:
+  u_SOC_top:
+    reference: SoC_top
+    is_master: true
+  u_MEM:
+    reference: MEM
+    is_master: true
+  u_MEM_MY:
+    reference: MEM
+    is_master: false
+  u_Interposer:
+    reference: Interposer
+    is_master: true
+Stack:
+  u_SOC_top:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  u_MEM:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  u_MEM_MY:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  u_Interposer:
+    loc: [0, 0]
+    z: 0
+    orient: R0

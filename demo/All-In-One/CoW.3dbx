@@ -1,0 +1,327 @@
+Header:
+  version: 3.0
+  unit: micron
+  precision: 10000
+  include:
+    - CoW.3dbv
+Design:
+  name: CoWoS_L
+
+ChipletInst:
+  uHBM_0_0:
+    reference: HBM4
+    is_master: true
+  uHBM_0_1:
+    reference: HBM4
+    is_master: false
+  uHBM_0_2:
+    reference: HBM4
+    is_master: false
+  uHBM_0_3:
+    reference: HBM4
+    is_master: false
+  uHBM_0_4:
+    reference: HBM4
+    is_master: false
+  uHBM_0_5:
+    reference: HBM4
+    is_master: false
+  uHBM_1_0:
+    reference: HBM4
+    is_master: false
+  uHBM_1_1:
+    reference: HBM4
+    is_master: false
+  uHBM_1_2:
+    reference: HBM4
+    is_master: false
+  uHBM_1_3:
+    reference: HBM4
+    is_master: false
+  uHBM_1_4:
+    reference: HBM4
+    is_master: false
+  uHBM_1_5:
+    reference: HBM4
+    is_master: false
+  uIOD1_0:
+    reference: IOD1
+    is_master: true
+  uIOD1_1:
+    reference: IOD1
+    is_master: false
+  uIOD2_ul:
+    reference: IOD2
+    is_master: true
+  uIOD2_ur:
+    reference: IOD2
+    is_master: false
+  uIOD2_dl:
+    reference: IOD2
+    is_master: false
+  uIOD2_dr:
+    reference: IOD2
+    is_master: false
+  uSoIC_BD_0:
+    reference: SoIC_BD
+    is_master: true
+  uSoIC_BD_1:
+    reference: SoIC_BD
+    is_master: false
+  uLSI1_0_0:
+    reference: LSI1
+    is_master: true
+  uLSI1_0_1:
+    reference: LSI1
+    is_master: false
+  uLSI1_0_2:
+    reference: LSI1
+    is_master: false
+  uLSI1_0_3:
+    reference: LSI1
+    is_master: false
+  uLSI1_0_4:
+    reference: LSI1
+    is_master: false
+  uLSI1_0_5:
+    reference: LSI1
+    is_master: false
+  uLSI1_1_0:
+    reference: LSI1
+    is_master: false
+  uLSI1_1_1:
+    reference: LSI1
+    is_master: false
+  uLSI1_1_2:
+    reference: LSI1
+    is_master: false
+  uLSI1_1_3:
+    reference: LSI1
+    is_master: false
+  uLSI1_1_4:
+    reference: LSI1
+    is_master: false
+  uLSI1_1_5:
+    reference: LSI1
+    is_master: false
+  uLSI2_0_0:
+    reference: LSI2
+    is_master: true
+  uLSI2_0_1:
+    reference: LSI2
+    is_master: false
+  uLSI2_0_2:
+    reference: LSI2
+    is_master: false
+  uLSI2_1_0:
+    reference: LSI2
+    is_master: false
+  uLSI2_1_1:
+    reference: LSI2
+    is_master: false
+  uLSI2_1_2:
+    reference: LSI2
+    is_master: false
+  ueDTC1_0:
+    reference: eDTC1
+    is_master: true
+  ueDTC1_1:
+    reference: eDTC1
+    is_master: false
+  ueDTC2_0:
+    reference: eDTC2
+    is_master: true
+  ueDTC2_1:
+    reference: eDTC2
+    is_master: false
+  uIVR:
+    reference: IVR
+    is_master: true
+  ueDTC3:
+    reference: eDTC3
+    is_master: true
+  uRW:
+    reference: RW
+    is_master: true
+
+Stack:
+  uHBM_0_0:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uHBM_0_1:
+    loc: [0, 0]
+    z: 500
+    orient: R0 
+  uHBM_0_2:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uHBM_0_3:
+    loc: [0, 0]
+    z: 500
+    orient: R0 
+  uHBM_0_4:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uHBM_0_5:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uHBM_1_0:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uHBM_1_1:
+    loc: [0, 0]
+    z: 500
+    orient: R0 
+  uHBM_1_2:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uHBM_1_3:
+    loc: [0, 0]
+    z: 500
+    orient: R0 
+  uHBM_1_4:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uHBM_1_5:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uIOD1_0:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uIOD1_1:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uIOD2_ul:
+    loc: [0, 0]
+    z: 500
+    orient: R0    
+  uIOD2_ur:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uIOD2_dl:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uIOD2_dr:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uSoIC_BD_0:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uSoIC_BD_1:
+    loc: [0, 0]
+    z: 500
+    orient: R0
+  uLSI1_0_0:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI1_0_1:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI1_0_2:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI1_0_3:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI1_0_4:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI1_0_5:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI1_1_0:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI1_1_1:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI1_1_2:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI1_1_3:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI1_1_4:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI1_1_5:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI2_0_0:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI2_0_1:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI2_0_2:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI2_1_0:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI2_1_1:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uLSI2_1_2:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  ueDTC1_0:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  ueDTC1_1:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  ueDTC2_0:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  ueDTC2_1:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uIVR:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  ueDTC3:
+    loc: [0, 0]
+    z: 250
+    orient: R0
+  uRW:
+    loc: [0, 0]
+    z: 250
+    orient: R0

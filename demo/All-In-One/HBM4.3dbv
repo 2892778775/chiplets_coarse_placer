@@ -1,0 +1,15 @@
+Header:
+  version: 3.0 
+  unit: micron
+  precision: 10000
+
+ChipletDef:
+  HBM4:
+    size: [27700, 19000]
+    shrink: 1
+    thickness: 250
+    seal_ring: [0, 0, 0, 0]
+    scribe_line_remaining_width: [0, 0, 0, 0]
+    omap: .\HBM4.omap
+    external:
+      3dbo_file: [.\HBM4.3dbo]

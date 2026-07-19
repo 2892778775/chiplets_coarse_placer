@@ -1,0 +1,12 @@
+Header:
+  version: 3.0
+  unit: micron
+  precision: 10000
+
+ChipletDef:
+  eDTC3:
+    size: [24400, 23400]
+    shrink: 0.98
+    thickness: 150
+    seal_ring: [18,18,18,18]
+    scribe_line_remaining_width: [76, 76, 76, 76]
