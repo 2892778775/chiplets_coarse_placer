@@ -165,10 +165,10 @@ class Parser:
                 source_full = parts[0]  # e.g., "u_SOC_0.hbm_0"
                 target_full = parts[1]  # e.g., "u_HBM_0.PHY0"
                 lsi_inst = parts[2] if len(parts) > 2 else None
-            
+                
                 source_parts = source_full.split('.')
                 target_parts = target_full.split('.')
-            
+                
                 if len(source_parts) == 2 and len(target_parts) == 2:
                     conn = D2DConnection(
                         source_inst=source_parts[0],
@@ -311,3 +311,4 @@ class Parser:
                         loc_y=float(parts[3]),
                         orientation=parts[4]
                     ))
+
