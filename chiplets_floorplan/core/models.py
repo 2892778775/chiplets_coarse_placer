@@ -232,6 +232,10 @@ class DesignModel:
     chiplet_defs: Dict[str, ChipletDef] = field(default_factory=dict)
     instances: List[ChipletInst] = field(default_factory=list)
     d2d_connections: List[D2DConnection] = field(default_factory=list)
+    # PI affinity: isolated instance name -> dominant instance name it belongs
+    # to (from the optional LSI.PI file). Such instances must be placed inside
+    # their dominant's footprint instead of in free space.
+    pi_affinity: Dict[str, str] = field(default_factory=dict)
     raw_data: Dict = field(default_factory=dict)  # raw parsed YAML for export
 
     def get_instance(self, name: str) -> Optional[ChipletInst]:

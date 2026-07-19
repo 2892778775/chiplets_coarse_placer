@@ -135,7 +135,24 @@ class Parser:
     def parse_connections(self, content: str) -> List[D2DConnection]:
         """Parse D2D connection content from a string (not from file)."""
         return self._parse_connection_content(content)
-    
+
+    def parse_pi(self, content: str) -> Dict[str, str]:
+        """Parse an LSI.PI affinity file: one ``child,parent`` pair per line.
+
+        Each line assigns an isolated chiplet instance (e.g. an eDTC or IVR
+        with no D2D connection) to the dominant instance whose footprint it
+        must be placed within. Blank lines and ``#`` comments are ignored.
+        """
+        affinity: Dict[str, str] = {}
+        for line in content.split('\n'):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = [p.strip() for p in line.split(',')]
+            if len(parts) >= 2 and parts[0] and parts[1]:
+                affinity[parts[0]] = parts[1]
+        return affinity
+
     def _parse_connection_content(self, content: str) -> List[D2DConnection]:
         """Parse connection file content directly from string."""
         connections = []
@@ -148,10 +165,10 @@ class Parser:
                 source_full = parts[0]  # e.g., "u_SOC_0.hbm_0"
                 target_full = parts[1]  # e.g., "u_HBM_0.PHY0"
                 lsi_inst = parts[2] if len(parts) > 2 else None
-                
+            
                 source_parts = source_full.split('.')
                 target_parts = target_full.split('.')
-                
+            
                 if len(source_parts) == 2 and len(target_parts) == 2:
                     conn = D2DConnection(
                         source_inst=source_parts[0],
@@ -294,4 +311,3 @@ class Parser:
                         loc_y=float(parts[3]),
                         orientation=parts[4]
                     ))
-

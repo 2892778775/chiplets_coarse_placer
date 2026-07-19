@@ -51,6 +51,8 @@ Examples:
     parser.add_argument("--dbx", "--3dbx", dest="dbx", required=True,
                         help="Path to the top-level .3dbx input file")
     parser.add_argument("--connection", default="", help="Path to D2D connection file (.connection)")
+    parser.add_argument("--pi", default="",
+                        help="Path to PI affinity file (LSI.PI). Defaults to LSI.PI next to the .3dbx if present")
     parser.add_argument("--output", default="output", help="Output directory for all artifacts")
     parser.add_argument("--algorithm", "--placer", dest="algorithm", choices=["SA", "Expert", "sa", "expert"],
                         default="Expert", help="Placement algorithm: SA (Simulated Annealing) or Expert (rule-based)")
@@ -112,6 +114,22 @@ Examples:
             log(f"  D2D connections: {len(design.d2d_connections)}")
     else:
         design.d2d_connections = []
+
+    # Parse PI affinity (LSI.PI): explicit --pi path, else auto-detect next to
+    # the .3dbx file. Assigns isolated chiplets (e.g. eDTC / IVR) to the
+    # dominant instance whose footprint they must be placed within.
+    pi_path = args.pi
+    if not pi_path:
+        candidate = os.path.join(os.path.dirname(os.path.abspath(args.dbx)), "LSI.PI")
+        if os.path.exists(candidate):
+            pi_path = candidate
+    if pi_path:
+        if not os.path.exists(pi_path):
+            log(f"  WARNING: PI file not found: {pi_path}")
+        else:
+            with open(pi_path, "r", encoding="utf-8") as f:
+                design.pi_affinity = parser_obj.parse_pi(f.read())
+            log(f"  PI affinity entries: {len(design.pi_affinity)} ({os.path.basename(pi_path)})")
 
     # Set random seed if provided
     if args.seed is not None:

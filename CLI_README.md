@@ -19,6 +19,7 @@ python run_cli.py --dbx design.3dbx --connection D2D.connection --output output/
 |------|------|--------|------|
 | `--dbx` | 必需 | - | 输入 `.3dbx` 文件路径（等价别名 `--3dbx`） |
 | `--connection` | 可选 | "" | D2D connection 文件路径 (`.connection`) |
+| `--pi` | 可选 | 自动探测 | PI 隶属关系文件（`LSI.PI`，每行一对 `isolated实例,dominant实例`）；缺省自动读取 `.3dbx` 同目录下的 `LSI.PI` |
 | `--output` | 可选 | `output` | 输出目录 |
 | `--algorithm` | 可选 | `Expert` | Placer 算法: `SA` / `Expert`（等价别名 `--placer`，大小写不敏感） |
 | `--sa-iterations` | 可选 | `5000` | SA 迭代次数（仅 SA 算法生效） |

@@ -50,6 +50,7 @@ Main options (`--dbx`/`--algorithm` are accepted aliases of `--3dbx`/`--placer`)
 |--------|---------|-------------|
 | `--3dbx` | (required) | Path to the top-level `.3dbx` input file |
 | `--connection` | `""` | Path to the D2D `.connection` file |
+| `--pi` | auto | Path to the `LSI.PI` affinity file (isolated chiplet → dominant). Defaults to `LSI.PI` next to the `.3dbx` when present |
 | `--placer` | `expert` | Placement algorithm: `expert` or `sa` (case-insensitive) |
 | `--output` | `output` | Output directory for all artifacts |
 | `--sa-iterations` | `5000` | SA iteration count (SA only) |
@@ -77,7 +78,9 @@ A deterministic, D2D-topology-driven constructive placer. It runs eight steps:
    base def such as the RW wafer in CoW designs) is partitioned into one
    region per group.
 3. **Isolation planning** — instances without D2D connections (IOD, IPD,
-   DUMMY, …) are collected for later placement.
+   DUMMY, …) are collected for later placement. Instances listed in the
+   optional `LSI.PI` affinity file (e.g. eDTC / IVR) are bound to the group
+   of the dominant instance they belong to.
 4. **Dominant placement** — each dominant is placed in its region; the
    orientation is scored by D2D PHY alignment against its slaves, including a
    crossing penalty that avoids crossing D2D pairs.
@@ -86,9 +89,12 @@ A deterministic, D2D-topology-driven constructive placer. It runs eight steps:
    orientation/flip combinations are enumerated, filtered by PHY-axis
    compatibility, and the candidate minimizing total Manhattan PHY distance
    wins. The bridge LSI is centered exactly on the D2D PHY midpoint (H7).
-6. **Isolated placement** — margin-aware first-fit corner search over the
-   base footprint; candidates must clear `seal_ring + scribe_line` margins of
-   all already-placed instances.
+6. **Isolated placement** — two phases, both after all same-group connected
+   instances are placed. First, PI-bound isolated instances are placed
+   *inside* their dominant's footprint, clear of LSI bridges and of each
+   other. Then, free isolated instances are placed by a margin-aware
+   first-fit corner search over the base footprint, preferring positions
+   that **abut** already-placed instances (no floating pockets with gaps).
 7. **Design merge** — groups with cross-group D2D connections are pulled
    together until the abutment/spacing rules are met.
 8. **Centering** — the whole design is translated so the instance MBR center
@@ -170,10 +176,15 @@ the exported files reproduces the reported score.
 |------|-----------|-----------------|-------------|---------------|
 | **CoWoS_S** (bundled) | 3 + Interposer | 2 (direct) | 0 | Valid, score 0.9333 |
 | **CoWoS_L** (bundled) | 7 + Interposer | 3 (LSI-bridged) | 3 | Valid, score 0.9666 |
-| **All-In-One (CoW)** | 44 + RW wafer base | 18 (LSI-bridged) | 18 | Valid, score 0.9635 |
+| **All-In-One (CoW)** | 44 + RW wafer base | 18 (LSI-bridged) | 18 | Valid, score 0.9280 |
 
 All cases pass every hard rule with the `expert` placer, which is fully
-deterministic: repeated runs produce identical layouts and scores.
+deterministic: repeated runs produce identical layouts and scores. The CoW
+case also reads an `LSI.PI` affinity file (one `child,parent` pair per line)
+that binds its eDTC / IVR isolated chiplets to their dominant SoIC die:
+PI-bound chiplets are placed inside the dominant's footprint (clear of LSI
+bridges and of each other), while the remaining free isolated chiplets
+(IOD2) abut their already-placed neighbors.
 
 ## Project Structure
 
