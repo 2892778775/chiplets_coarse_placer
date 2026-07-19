@@ -20,7 +20,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from chiplets_floorplan.core.parser import Parser
-from chiplets_floorplan.core.placer import Placer
+from chiplets_floorplan.core.placer import ExpertPlacer
 from chiplets_floorplan.core.d2d_router import D2DRouter
 from chiplets_floorplan.core.compaction import Compaction
 from chiplets_floorplan.core.exporter import Exporter
@@ -54,7 +54,6 @@ class SessionState:
         self.reference_instance = ""  # User-selected reference chiplet instance
         self.config = {
             "enclosure": 500.0,
-            "sa_iterations": 5000,
         }
 
 state = SessionState()
@@ -394,12 +393,10 @@ def run_placement():
         
         # Override config from request
         enclosure = data.get('enclosure', state.config['enclosure'])
-        sa_iterations = data.get('sa_iterations', state.config['sa_iterations'])
-        algorithm = data.get('algorithm', 'SA')  # "SA" or "Expert"
         
         design = state.design
         
-        placer = Placer(design, algorithm=algorithm, sa_iterations=sa_iterations, enclosure=enclosure)
+        placer = ExpertPlacer(design, enclosure=enclosure)
         solution = placer.solve()
         state.solution = solution
         
@@ -414,7 +411,7 @@ def run_placement():
             'soft_scores': solution.report.soft_scores,
             'score_details': solution.report.score_details,
             'weights': checker.weights,
-            'algorithm': algorithm
+            'algorithm': 'Expert'
         })
     except Exception as e:
         traceback.print_exc()

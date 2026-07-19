@@ -470,16 +470,15 @@ function refreshData() {
 }
 
 function runPlacement() {
-    const algorithm = document.getElementById('placementAlgorithm').value;
-    showMessage('Running ' + algorithm + ' placement...', 'info');
-    fetch('/api/run_placement', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ algorithm: algorithm }) })
+    showMessage('Running Expert placement...', 'info');
+    fetch('/api/run_placement', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
         .then(r => {
             if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + r.statusText);
             return r.json();
         })
         .then(data => {
             if (data.success) {
-                showMessage(algorithm + ' Score: ' + data.score.toFixed(3), 'success');
+                showMessage('Expert Score: ' + data.score.toFixed(3), 'success');
                 refreshData();
             } else {
                 showMessage(data.error || 'Placement failed', 'error');

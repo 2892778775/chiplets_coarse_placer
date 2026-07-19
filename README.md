@@ -31,11 +31,8 @@ Dependency notes:
 ## CLI Usage
 
 ```bash
-# Expert placement (default; rule-based, fast, deterministic)
-python run_cli.py --3dbx CoWoS_S/CoWoS-S.3dbx --connection CoWoS_S/D2D.connection --placer expert --output output_s/
-
-# Simulated-annealing placement
-python run_cli.py --3dbx CoWoS_L/CoWoS-L.3dbx --connection CoWoS_L/D2D.connection --placer sa --sa-iterations 5000 --seed 42 --output output_l/
+# Expert placement (rule-based, fast, deterministic)
+python run_cli.py --3dbx CoWoS_S/CoWoS-S.3dbx --connection CoWoS_S/D2D.connection --output output_s/
 
 # Skip D2D refinement
 python run_cli.py --3dbx design.3dbx --output output/ --skip-d2d
@@ -44,17 +41,14 @@ python run_cli.py --3dbx design.3dbx --output output/ --skip-d2d
 python run_cli.py --help
 ```
 
-Main options (`--dbx`/`--algorithm` are accepted aliases of `--3dbx`/`--placer`):
+Main options (`--dbx` is an accepted alias of `--3dbx`):
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--3dbx` | (required) | Path to the top-level `.3dbx` input file |
 | `--connection` | `""` | Path to the D2D `.connection` file |
 | `--pi` | auto | Path to the `LSI.PI` affinity file (isolated chiplet → dominant). Defaults to `LSI.PI` next to the `.3dbx` when present |
-| `--placer` | `expert` | Placement algorithm: `expert` or `sa` (case-insensitive) |
 | `--output` | `output` | Output directory for all artifacts |
-| `--sa-iterations` | `5000` | SA iteration count (SA only) |
-| `--seed` | none | Random seed for SA reproducibility |
 | `--enclosure` | `500.0` | Minimum interposer enclosure margin (um) |
 | `--skip-d2d` | off | Skip D2D PHY alignment refinement |
 | `--no-images` / `--no-json` / `--no-csv` | off | Skip individual report artifacts |
@@ -65,9 +59,9 @@ otherwise (and `2` on input errors).
 
 See `CLI_README.md` for a Chinese version of the CLI guide.
 
-## Placement Algorithms
+## Placement Algorithm
 
-### Expert (rule-based, default)
+### Expert (rule-based)
 
 A deterministic, D2D-topology-driven constructive placer. It runs eight steps:
 
@@ -93,8 +87,9 @@ A deterministic, D2D-topology-driven constructive placer. It runs eight steps:
    instances are placed. First, PI-bound isolated instances are placed
    *inside* their dominant's footprint, clear of LSI bridges and of each
    other. Then, free isolated instances are placed by a margin-aware
-   first-fit corner search over the base footprint, preferring positions
-   that **abut** already-placed instances (no floating pockets with gaps).
+   corner search over the base footprint, preferring positions that **abut as
+   many already-placed neighbors as possible** (pocket corners touching two
+   or more sides win over single-side positions).
 7. **Design merge** — groups with cross-group D2D connections are pulled
    together until the abutment/spacing rules are met.
 8. **Centering** — the whole design is translated so the instance MBR center
@@ -104,23 +99,13 @@ A final overlap/spacing resolver only moves floating (isolated) instances;
 anchored dominants, abutted slaves and LSI bridges are never displaced.
 D2D-connected pairs are exempt from the spacing rule by construction.
 
-### SA (Simulated Annealing)
-
-A stochastic optimizer over instance positions and orientations. The
-objective combines the soft-rule score with a large penalty for any hard-rule
-violation. It explores a larger solution space than the Expert placer and is
-useful for designs without D2D topology or for global optimization studies.
-Control it with `--sa-iterations` and `--seed`.
-
-**Rule of thumb:** use `expert` when the design has meaningful D2D
-connections (it reproduces hand-crafted CoWoS/CoW reference layouts quickly
-and deterministically); use `sa` when you need topology-agnostic global
-search and can afford the iterations.
+See `docs/EXPERT_ALGORITHM.md` for the full step-by-step description,
+including the key functions and constants of each step.
 
 ## Processing Pipeline
 
 ```
-Input (.3dbx + .connection) → Parse → Placement (Expert / SA)
+Input (.3dbx + .connection) → Parse → Placement (Expert)
                                    ↓
                      D2D refinement (optional, auto-reverted if it degrades)
                                    ↓
@@ -178,7 +163,7 @@ the exported files reproduces the reported score.
 | **CoWoS_L** (bundled) | 7 + Interposer | 3 (LSI-bridged) | 3 | Valid, score 0.9666 |
 | **All-In-One (CoW)** | 44 + RW wafer base | 18 (LSI-bridged) | 18 | Valid, score 0.9358 |
 
-All cases pass every hard rule with the `expert` placer, which is fully
+All cases pass every hard rule with the Expert placer, which is fully
 deterministic: repeated runs produce identical layouts and scores. The CoW
 case also reads an `LSI.PI` affinity file (one `child,parent` pair per line)
 that binds its eDTC / IVR isolated chiplets to their dominant SoIC die:
@@ -193,7 +178,7 @@ bridges and of each other), while the remaining free isolated chiplets
 ├── chiplets_floorplan/
 │   ├── core/
 │   │   ├── parser.py          # 3Dblox parser (.3dbx/.3dbv/.3dbo/.omap/.connection)
-│   │   ├── placer.py          # Placer facade + ExpertPlacer (8-step) + SA
+│   │   ├── placer.py          # ExpertPlacer (8-step deterministic construction)
 │   │   ├── constraints.py     # Hard/soft constraint checker & scoring
 │   │   ├── geometry.py        # Coordinate transforms, AABB ops, overlap resolution
 │   │   ├── models.py          # Data models (ChipletDef, ChipletInst, AABB, D2DConnection, …)
@@ -204,6 +189,8 @@ bridges and of each other), while the remaining free isolated chiplets
 │   ├── viz.py                 # floorplan.png / score_table.png / score.json / score.csv
 │   └── web/app.py             # Optional Flask Web UI (python -m chiplets_floorplan.web.app)
 │                              # Uploads: .3dbx, D2D.connection, LSI.PI affinity file
+├── docs/
+│   └── EXPERT_ALGORITHM.md    # Step-by-step Expert placer description
 ├── run_cli.py                 # CLI entry point
 ├── CLI_README.md              # CLI guide (Chinese)
 ├── CoWoS_S/                   # Bundled test case
@@ -215,7 +202,7 @@ bridges and of each other), while the remaining free isolated chiplets
 
 ```python
 from chiplets_floorplan.core.parser import Parser
-from chiplets_floorplan.core.placer import Placer
+from chiplets_floorplan.core.placer import ExpertPlacer
 from chiplets_floorplan.core.constraints import ConstraintChecker
 
 parser = Parser()
@@ -223,7 +210,7 @@ design = parser.parse_design("CoWoS_S/CoWoS-S.3dbx")
 with open("CoWoS_S/D2D.connection", "r", encoding="utf-8") as f:
     design.d2d_connections = parser.parse_connections(f.read())
 
-solution = Placer(design, algorithm="Expert").solve()
+solution = ExpertPlacer(design).solve()
 report = ConstraintChecker(design).check_all()
 print(f"Valid: {report.is_valid}, Score: {report.total_score:.4f}")
 ```

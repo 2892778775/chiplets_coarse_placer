@@ -8,7 +8,7 @@ from .geometry import GeometryEngine
 # Lazy imports for heavy dependencies
 # from .parser import Parser
 # from .constraints import ConstraintChecker
-# from .placer import Placer
+# from .placer import ExpertPlacer
 # from .d2d_router import D2DRouter
 # from .compaction import Compaction
 # from .exporter import Exporter

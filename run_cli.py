@@ -3,8 +3,8 @@
 3D IC Chiplets Coarse-Placement System — CLI Automation
 
 Usage:
-    python run_cli.py --3dbx CoWoS_S/CoWoS-S.3dbx --connection CoWoS_S/D2D.connection --placer expert --output output/
-    python run_cli.py --dbx CoWoS_L/CoWoS-L.3dbx --connection CoWoS_L/D2D.connection --algorithm SA --output out_l/
+    python run_cli.py --3dbx CoWoS_S/CoWoS-S.3dbx --connection CoWoS_S/D2D.connection --output output/
+    python run_cli.py --dbx CoWoS_L/CoWoS-L.3dbx --connection CoWoS_L/D2D.connection --output out_l/
 
 Outputs:
     - 3Dblox files (.3dbx, .3dbv, .3dbo, .omap)
@@ -22,7 +22,7 @@ import json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from chiplets_floorplan.core.parser import Parser
-from chiplets_floorplan.core.placer import Placer
+from chiplets_floorplan.core.placer import ExpertPlacer
 from chiplets_floorplan.core.d2d_router import D2DRouter
 from chiplets_floorplan.core.compaction import Compaction
 from chiplets_floorplan.core.exporter import Exporter
@@ -38,11 +38,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Expert placement (default)
+  # Expert placement
   python run_cli.py --dbx CoWoS_S/CoWoS-S.3dbx --connection CoWoS_S/D2D.connection --output output/
-
-  # Simulated Annealing placement
-  python run_cli.py --dbx CoWoS_L/CoWoS-L.3dbx --connection CoWoS_L/D2D.connection --output out_l/ --algorithm SA
 
   # Skip D2D refinement
   python run_cli.py --dbx design.3dbx --output output/ --skip-d2d
@@ -54,20 +51,14 @@ Examples:
     parser.add_argument("--pi", default="",
                         help="Path to PI affinity file (LSI.PI). Defaults to LSI.PI next to the .3dbx if present")
     parser.add_argument("--output", default="output", help="Output directory for all artifacts")
-    parser.add_argument("--algorithm", "--placer", dest="algorithm", choices=["SA", "Expert", "sa", "expert"],
-                        default="Expert", help="Placement algorithm: SA (Simulated Annealing) or Expert (rule-based)")
-    parser.add_argument("--sa-iterations", type=int, default=5000, help="SA iterations (only for SA algorithm)")
     parser.add_argument("--enclosure", type=float, default=500.0, help="Minimum interposer enclosure (um)")
     parser.add_argument("--dpi", type=int, default=150, help="Image resolution DPI")
     parser.add_argument("--skip-d2d", action="store_true", help="Skip D2D refinement")
     parser.add_argument("--no-images", action="store_true", help="Skip PNG image generation (floorplan + score table)")
     parser.add_argument("--no-json", action="store_true", help="Skip score.json output")
     parser.add_argument("--no-csv", action="store_true", help="Skip score.csv output")
-    parser.add_argument("--seed", type=int, default=None, help="Random seed for SA algorithm reproducibility")
     parser.add_argument("--quiet", action="store_true", help="Suppress non-essential console output")
     args = parser.parse_args()
-    # Normalize algorithm name (accept expert/sa in any case)
-    args.algorithm = "SA" if args.algorithm.upper() == "SA" else "Expert"
 
     def log(msg):
         if not args.quiet:
@@ -79,7 +70,7 @@ Examples:
     log("=" * 60)
     log("3D IC Chiplets Coarse-Placement System — CLI")
     log(f"Input:      {args.dbx}")
-    log(f"Algorithm:  {args.algorithm}")
+    log("Algorithm:  Expert")
     log(f"Output:     {args.output}")
     log("=" * 60)
 
@@ -131,20 +122,11 @@ Examples:
                 design.pi_affinity = parser_obj.parse_pi(f.read())
             log(f"  PI affinity entries: {len(design.pi_affinity)} ({os.path.basename(pi_path)})")
 
-    # Set random seed if provided
-    if args.seed is not None:
-        import random
-        random.seed(args.seed)
-        log(f"  Random seed: {args.seed}")
-
     # ------------------------------------------------------------------
     # 2. Placement
     # ------------------------------------------------------------------
-    log(f"\n[2/5] Running placement ({args.algorithm})...")
-    if args.algorithm == "SA":
-        placer = Placer(design, algorithm="SA", sa_iterations=args.sa_iterations, enclosure=args.enclosure)
-    else:
-        placer = Placer(design, algorithm="Expert", enclosure=args.enclosure)
+    log("\n[2/5] Running placement (Expert)...")
+    placer = ExpertPlacer(design, enclosure=args.enclosure)
     solution = placer.solve()
     log(f"  Score: {solution.score:.4f}")
     log(f"  Valid: {solution.report.is_valid}")
@@ -219,7 +201,7 @@ Examples:
     if not args.no_images:
         floorplan_path = os.path.join(args.output, "floorplan.png")
         plot_floorplan(design, floorplan_path,
-                       title=f"{design.name} — {args.algorithm} Placement",
+                       title=f"{design_name} — Expert Placement",
                        dpi=args.dpi)
         log(f"  Floorplan: {floorplan_path}")
 

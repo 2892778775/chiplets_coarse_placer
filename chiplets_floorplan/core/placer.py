@@ -1,12 +1,11 @@
 """
-Placer engine: constraint-driven construction + simulated annealing optimization.
+Placer engine: deterministic expert-rule constructive placement.
 
-Phase 1: Construct initial legal placement based on chiplet types and constraints.
-Phase 2: Refine with SA using only legal geometric moves.
+ExpertPlacer: 8-step constraint-driven construction.
+See docs/EXPERT_ALGORITHM.md for the full pipeline description.
 """
 
 import math
-import random
 from typing import Dict, List, Tuple, Optional, Set
 from .models import DesignModel, ChipletInst, ChipletDef, InstancePose, PlacementSolution, AABB
 from .geometry import GeometryEngine
@@ -14,15 +13,10 @@ from .constraints import ConstraintChecker
 
 
 # Constants
-DEFAULT_SA_ITERATIONS = 10000
-DEFAULT_SA_TEMP = 100.0
-DEFAULT_SA_COOLING = 0.995
 DEFAULT_ENCLOSURE = 500.0
 SPACING_EPSILON = 1.0
 # Tolerance for the abutment test in isolated placement (um).
 ABUT_TOLERANCE = 1e-3
-INVALID_SCORE = -1e9
-MAX_SA_SHIFT = 5000.0
 EDGE_NEAR_THRESHOLD = 0.35
 EDGE_FAR_THRESHOLD = 0.65
 CENTER_ALIGNMENT_TOL = 0.1
@@ -34,203 +28,6 @@ FLIPS = ["None", "MX", "MY"]
 ORIENT_SCORE_MATCH = 2
 ORIENT_SCORE_OPPOSITE = -2
 ORIENT_SCORE_ADJACENT = 0.5
-
-
-class Placer:
-    """Main placement engine."""
-
-    def __init__(self, design: DesignModel,
-                 algorithm: str = "SA",
-                 sa_iterations: int = DEFAULT_SA_ITERATIONS,
-                 sa_initial_temp: float = DEFAULT_SA_TEMP,
-                 sa_cooling_rate: float = DEFAULT_SA_COOLING,
-                 enclosure: float = DEFAULT_ENCLOSURE):
-        self.design = design
-        self.algorithm = algorithm
-        self.sa_iterations = sa_iterations
-        self.sa_initial_temp = sa_initial_temp
-        self.sa_cooling_rate = sa_cooling_rate
-        self.enclosure = enclosure
-
-    def solve(self) -> PlacementSolution:
-        """Run full placement based on selected algorithm."""
-        if self.algorithm == "Expert":
-            expert = ExpertPlacer(self.design, enclosure=self.enclosure)
-            return expert.solve()
-
-        self._construct_initial_placement()
-        self._simulated_annealing()
-
-        checker = ConstraintChecker(self.design)
-        report = checker.check_all()
-
-        mbr = self.design.mbr_of_instances()
-        interposer_w = mbr.width + 2 * self.enclosure
-        interposer_h = mbr.height + 2 * self.enclosure
-
-        poses = {inst.name: inst.pose.copy() for inst in self.design.instances}
-
-        return PlacementSolution(
-            design=self.design,
-            instance_poses=poses,
-            interposer_size=(interposer_w, interposer_h),
-            score=report.total_score,
-            report=report
-        )
-
-    def _construct_initial_placement(self) -> None:
-        """Build a legal initial placement using structured packing."""
-        if self.design.d2d_connections:
-            expert = ExpertPlacer(self.design, enclosure=self.enclosure)
-            expert._analyze_connections()
-            expert._determine_orientations()
-            expert._place_chiplets()
-            expert._align_d2d_connections()
-            expert._place_lsi()
-            mbr = self.design.mbr_of_instances()
-            base_ref = self.design.reference_def_name()
-            ip_def = self.design.get_def(base_ref) if base_ref else None
-            if ip_def:
-                ref_cx = ip_def.width / 2.0
-                ref_cy = ip_def.height / 2.0
-                mbr_cx = (mbr.x1 + mbr.x2) / 2.0
-                mbr_cy = (mbr.y1 + mbr.y2) / 2.0
-                dx = ref_cx - mbr_cx
-                dy = ref_cy - mbr_cy
-                for inst in self.design.instances:
-                    if not self.design.is_base_instance(inst):
-                        inst.pose.x += dx
-                        inst.pose.y += dy
-            return
-
-        self._construct_generic_placement()
-
-    def _get_max_margin(self) -> float:
-        """Compute the maximum margin (seal_ring + scribe_line) across all chiplet types."""
-        max_margin = 0.0
-        base_ref = self.design.reference_def_name()
-        for def_ in self.design.chiplet_defs.values():
-            if def_.name == base_ref:
-                continue
-            margin = max(def_.seal_ring) + max(def_.scribe_line)
-            if margin > max_margin:
-                max_margin = margin
-        return max_margin
-
-    def _construct_generic_placement(self) -> None:
-        """Generic fallback: pack by Z layer side by side."""
-        z_layers = {}
-        for inst in self.design.instances:
-            if self.design.is_base_instance(inst):
-                continue
-            z_layers.setdefault(inst.pose.z, []).append(inst)
-
-        sorted_z = sorted(z_layers.keys(), reverse=True)
-        base_spacing = self._get_max_margin() * 2 + SPACING_EPSILON
-
-        for z_idx, z in enumerate(sorted_z):
-            instances = z_layers[z]
-            if not self._check_layer_overlaps(instances):
-                continue
-
-            instances.sort(key=lambda inst: inst.pose.x)
-            current_x = 0.0
-            for inst in instances:
-                chiplet_def = self.design.get_def(inst.reference)
-                if not chiplet_def:
-                    continue
-                temp_pose = InstancePose(x=0, y=0, z=0, orientation=inst.pose.orientation, flip=inst.pose.flip)
-                aabb = GeometryEngine.compute_global_aabb(temp_pose, chiplet_def)
-                inst.pose.x = current_x - aabb.x1
-                if z_idx == 0:
-                    inst.pose.y = 0.0
-                current_x += aabb.width + base_spacing
-
-    def _check_layer_overlaps(self, instances: List[ChipletInst]) -> bool:
-        """Check if any two instances in the same layer overlap in XY."""
-        for i in range(len(instances)):
-            def_i = self.design.get_def(instances[i].reference)
-            if not def_i:
-                continue
-            aabb_i = instances[i].global_aabb(def_i)
-            for j in range(i + 1, len(instances)):
-                def_j = self.design.get_def(instances[j].reference)
-                if not def_j:
-                    continue
-                if aabb_i.overlaps(instances[j].global_aabb(def_j)):
-                    return True
-        return False
-
-    def _simulated_annealing(self) -> None:
-        """Run SA to optimize soft rules while maintaining hard constraints."""
-        flexible_instances = [
-            inst for inst in self.design.instances
-            if not self.design.is_base_instance(inst) and inst.flexibility.status != "fixed"
-        ]
-        if not flexible_instances:
-            return
-
-        checker = ConstraintChecker(self.design)
-        current_report = checker.check_all()
-        current_score = current_report.total_score if current_report.is_valid else INVALID_SCORE
-
-        best_score = current_score
-        best_poses = {inst.name: inst.pose.copy() for inst in self.design.instances}
-        temp = self.sa_initial_temp
-
-        for _ in range(self.sa_iterations):
-            inst = random.choice(flexible_instances)
-            chiplet_def = self.design.get_def(inst.reference)
-            if not chiplet_def:
-                continue
-
-            old_pose = inst.pose.copy()
-            move_type = random.choice(["shift", "rotate", "swap"])
-
-            if move_type == "shift" and inst.flexibility.shift:
-                self._try_shift(inst)
-            elif move_type == "rotate" and inst.flexibility.rotate:
-                self._try_rotate(inst)
-            elif move_type == "swap" and len(flexible_instances) > 1:
-                other = random.choice([f for f in flexible_instances if f != inst])
-                self._try_swap(inst, other)
-
-            new_report = checker.check_all()
-            if not new_report.is_valid:
-                inst.pose = old_pose
-                continue
-
-            new_score = new_report.total_score
-            delta = new_score - current_score
-
-            if delta > 0 or random.random() < math.exp(delta / temp):
-                current_score = new_score
-                if current_score > best_score:
-                    best_score = current_score
-                    best_poses = {i.name: i.pose.copy() for i in self.design.instances}
-            else:
-                inst.pose = old_pose
-
-            temp *= self.sa_cooling_rate
-
-        for inst in self.design.instances:
-            if inst.name in best_poses:
-                inst.pose = best_poses[inst.name].copy()
-
-    def _try_shift(self, inst: ChipletInst) -> None:
-        """Try to shift an instance by a small random amount."""
-        inst.pose.x += random.uniform(-MAX_SA_SHIFT, MAX_SA_SHIFT)
-        inst.pose.y += random.uniform(-MAX_SA_SHIFT, MAX_SA_SHIFT)
-
-    def _try_rotate(self, inst: ChipletInst) -> None:
-        """Try to rotate an instance by 90 degrees."""
-        current_idx = ORIENTATIONS.index(inst.pose.orientation) if inst.pose.orientation in ORIENTATIONS else 0
-        inst.pose.orientation = ORIENTATIONS[(current_idx + random.choice([1, -1])) % 4]
-
-    def _try_swap(self, inst_a: ChipletInst, inst_b: ChipletInst) -> None:
-        """Swap positions of two instances."""
-        inst_a.pose.x, inst_b.pose.x = inst_b.pose.x, inst_a.pose.x
-        inst_a.pose.y, inst_b.pose.y = inst_b.pose.y, inst_a.pose.y
 
 
 class BasePlacer:
