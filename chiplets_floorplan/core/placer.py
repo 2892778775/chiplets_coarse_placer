@@ -19,6 +19,8 @@ DEFAULT_SA_TEMP = 100.0
 DEFAULT_SA_COOLING = 0.995
 DEFAULT_ENCLOSURE = 500.0
 SPACING_EPSILON = 1.0
+# Tolerance for the abutment test in isolated placement (um).
+ABUT_TOLERANCE = 1e-3
 INVALID_SCORE = -1e9
 MAX_SA_SHIFT = 5000.0
 EDGE_NEAR_THRESHOLD = 0.35
@@ -667,12 +669,31 @@ class ExpertPlacer(BasePlacer):
     # ------------------------------------------------------------------
 
     def _step3_isolate_instances_plan(self) -> None:
-        """Distribute isolated instances (IOD, IPD, DUMMY) evenly across groups."""
+        """Distribute isolated instances (IOD, IPD, DUMMY) across groups.
+
+        Instances with a PI-affinity entry (from LSI.PI, e.g. eDTC / IVR)
+        join the group of the dominant instance they belong to; the
+        remaining isolated instances are distributed evenly by type.
+        """
+        pi_affinity = getattr(self.design, "pi_affinity", {}) or {}
+        free_names: List[str] = []
+        for name in sorted(self.isolated_names):
+            dom = pi_affinity.get(name)
+            if dom:
+                g_idx = self.instance_to_group.get(dom)
+                if g_idx is not None:
+                    self.groups[g_idx].isolated_names.append(name)
+                    self.instance_to_group[name] = g_idx
+                    continue
+                print(f"  WARNING: PI affinity {name} -> {dom}: dominant not in any group; "
+                      f"treating as free isolated instance")
+            free_names.append(name)
+
         isolated_by_type: Dict[str, List[str]] = {}
         # Sort: set iteration order varies with PYTHONHASHSEED, which would
         # make the group assignment (and hence the final layout and score)
         # differ between runs of an otherwise deterministic placer.
-        for name in sorted(self.isolated_names):
+        for name in free_names:
             inst = self.design.get_instance(name)
             ref = inst.reference
             if ref not in isolated_by_type:
@@ -1306,6 +1327,7 @@ class ExpertPlacer(BasePlacer):
         # Isolated instances placed during this step become obstacles for the
         # remaining ones; unplaced ones (parser-default pose) are ignored.
         self._isolated_placed = set()
+        pi_affinity = getattr(self.design, "pi_affinity", {}) or {}
 
         for group in self.groups:
             if not group.isolated_names:
@@ -1319,7 +1341,31 @@ class ExpertPlacer(BasePlacer):
                 self._place_isolated_in_empty_group(group)
                 continue
 
+            # Phase A: PI-bound isolated instances (e.g. eDTC / IVR from
+            # LSI.PI) must be placed *inside* the footprint of the dominant
+            # instance they belong to, clear of LSI bridges and of each other.
+            for name in sorted(isolated_to_place):
+                if name not in pi_affinity:
+                    continue
+                inst = self.design.get_instance(name)
+                def_ = self.design.get_def(inst.reference)
+                dom_inst = self.design.get_instance(pi_affinity[name])
+                dom_def = self.design.get_def(dom_inst.reference) if dom_inst else None
+                if not def_ or not dom_inst or not dom_def:
+                    continue
+                if not self._place_pi_isolated(inst, def_, dom_inst.global_aabb(dom_def)):
+                    print(f"  WARNING: {name} does not fit inside {dom_inst.name}; "
+                          f"falling back to free abut placement")
+                    if not self._place_isolated_margin_aware(inst, def_, area, group.aabb):
+                        self._place_at_boundary(inst, def_, area)
+                self._isolated_placed.add(name)
+
+            # Phase B: free isolated instances (e.g. IOD2 with no D2D
+            # connection) are placed after all other same-group instances and
+            # must abut placed instances whenever possible.
             for name in isolated_to_place:
+                if name in pi_affinity:
+                    continue
                 inst = self.design.get_instance(name)
                 def_ = self.design.get_def(inst.reference)
                 if not def_:
@@ -1327,6 +1373,62 @@ class ExpertPlacer(BasePlacer):
                 if not self._place_isolated_margin_aware(inst, def_, area, group.aabb):
                     self._place_at_boundary(inst, def_, area)
                 self._isolated_placed.add(name)
+
+    def _place_pi_isolated(self, inst, def_, dom_aabb: AABB) -> bool:
+        """Place a PI-bound isolated instance inside its dominant's footprint.
+
+        The instance must be fully contained in ``dom_aabb`` and clear the
+        margin requirements of all placed instances on overlapping Z layers
+        (LSI bridges and previously placed PI-bound instances).
+        """
+        w, h = def_.width, def_.height
+        m_i = max(def_.seal_ring) + max(def_.scribe_line)
+
+        placed_set = getattr(self, "_isolated_placed", set())
+        obstacles = []
+        z0, z1 = inst.pose.z, inst.pose.z + def_.thickness
+        for other in self.design.instances:
+            if other.name == inst.name or self._is_base(other):
+                continue
+            if other.name in self.isolated_names and other.name not in placed_set:
+                continue
+            od = self.design.get_def(other.reference)
+            if not od:
+                continue
+            oz0, oz1 = other.pose.z, other.pose.z + od.thickness
+            if z1 <= oz0 or oz1 <= z0:
+                continue
+            obstacles.append((other.global_aabb(od), max(od.seal_ring) + max(od.scribe_line)))
+
+        xs = {dom_aabb.x1, dom_aabb.x2 - w}
+        ys = {dom_aabb.y1, dom_aabb.y2 - h}
+        for a, m_o in obstacles:
+            mm = m_i + m_o + SPACING_EPSILON
+            xs.update([a.x1 - mm - w, a.x2 + mm])
+            ys.update([a.y1 - mm - h, a.y2 + mm])
+
+        best = None  # (y, x) first-fit inside the dominant footprint
+        for cx in xs:
+            for cy in ys:
+                if (cx < dom_aabb.x1 or cy < dom_aabb.y1 or
+                        cx + w > dom_aabb.x2 or cy + h > dom_aabb.y2):
+                    continue
+                cand = AABB(cx, cy, cx + w, cy + h)
+                ok = True
+                for a, m_o in obstacles:
+                    mm = m_i + m_o + SPACING_EPSILON
+                    if cand.inflate(mm).overlaps(a):
+                        ok = False
+                        break
+                if ok and (best is None or (cy, cx) < best[0]):
+                    best = ((cy, cx), cx, cy)
+
+        if best is None:
+            return False
+        _, bx, by = best
+        inst.pose.x = bx
+        inst.pose.y = by
+        return True
 
     def _place_isolated_margin_aware(self, inst, def_, area: AABB, group_aabb: AABB) -> bool:
         """First-fit search of margin-clear candidate positions for an isolated instance."""
@@ -1359,23 +1461,32 @@ class ExpertPlacer(BasePlacer):
             xs.update([a.x1 - mm - w, a.x2 + mm, a.x1, a.x2 - w])
             ys.update([a.y1 - mm - h, a.y2 + mm, a.y1, a.y2 - h])
 
-        best = None  # (in_group, out_of_base, y, x)
+        best = None  # (not_abutting, out_of_group, y, x)
         for cx in xs:
             for cy in ys:
                 if cx < area.x1 or cy < area.y1 or cx + w > area.x2 or cy + h > area.y2:
                     continue
                 cand = AABB(cx, cy, cx + w, cy + h)
                 ok = True
+                abuts = False
                 for a, m_o in placed:
                     mm = m_i + m_o + SPACING_EPSILON
                     if cand.inflate(mm).overlaps(a):
                         ok = False
                         break
+                    # Abutment test: feasibility already guarantees gap >= mm,
+                    # so if the box inflated by slightly *more* than mm
+                    # touches the neighbor, the gap lies in [mm, mm + tol] —
+                    # the candidate abuts that neighbor.
+                    if not abuts and cand.inflate(mm + ABUT_TOLERANCE).overlaps(a):
+                        abuts = True
                 if not ok:
                     continue
+                # Free isolated instances must abut placed instances whenever
+                # possible (no floating pockets with gaps).
                 in_group = (group_aabb.x1 <= cx and cx + w <= group_aabb.x2 and
                             group_aabb.y1 <= cy and cy + h <= group_aabb.y2)
-                best_key = (0 if in_group else 1, cy, cx)
+                best_key = (0 if abuts else 1, 0 if in_group else 1, cy, cx)
                 if best is None or best_key < best[0]:
                     best = (best_key, cx, cy)
 
