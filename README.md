@@ -37,8 +37,8 @@ python run_cli.py --3dbx CoWoS_S/CoWoS-S.3dbx --connection CoWoS_S/D2D.connectio
 # Simulated-annealing placement
 python run_cli.py --3dbx CoWoS_L/CoWoS-L.3dbx --connection CoWoS_L/D2D.connection --placer sa --sa-iterations 5000 --seed 42 --output output_l/
 
-# Skip optional post-processing steps
-python run_cli.py --3dbx design.3dbx --output output/ --skip-dummy --skip-d2d
+# Skip D2D refinement
+python run_cli.py --3dbx design.3dbx --output output/ --skip-d2d
 
 # Full option list
 python run_cli.py --help
@@ -55,7 +55,6 @@ Main options (`--dbx`/`--algorithm` are accepted aliases of `--3dbx`/`--placer`)
 | `--sa-iterations` | `5000` | SA iteration count (SA only) |
 | `--seed` | none | Random seed for SA reproducibility |
 | `--enclosure` | `500.0` | Minimum interposer enclosure margin (um) |
-| `--skip-dummy` | off | Skip dummy-die filling |
 | `--skip-d2d` | off | Skip D2D PHY alignment refinement |
 | `--no-images` / `--no-json` / `--no-csv` | off | Skip individual report artifacts |
 | `--quiet` | off | Suppress non-essential console output |
@@ -119,8 +118,6 @@ Input (.3dbx + .connection) → Parse → Placement (Expert / SA)
                                    ↓
                      D2D refinement (optional, auto-reverted if it degrades)
                                    ↓
-                     Dummy-die fill (optional, clipped to the base footprint)
-                                   ↓
                      Compaction (interposer sizing / base-layer centering)
                                    ↓
                      Final constraint re-check
@@ -155,7 +152,7 @@ Input (.3dbx + .connection) → Parse → Placement (Expert / SA)
 | File | Description |
 |------|-------------|
 | `<name>_export.3dbx` | Top-level 3Dblox design with updated `Stack` positions (sub-micron precision preserved) |
-| `<name>_export.3dbv` | Master definition file including every chiplet `.3dbv` (dummy defs included) |
+| `<name>_export.3dbv` | Master definition file including every chiplet `.3dbv` |
 | `<chiplet>.3dbv` | Individual chiplet definition (size, shrink, thickness, seal ring, scribe line) |
 | `<chiplet>.3dbo` | Chiplet object (IP) definitions |
 | `<chiplet>.omap` | Chiplet IP placement map (local coordinates) |
@@ -173,10 +170,10 @@ the exported files reproduces the reported score.
 |------|-----------|-----------------|-------------|---------------|
 | **CoWoS_S** (bundled) | 3 + Interposer | 2 (direct) | 0 | Valid, score 0.9333 |
 | **CoWoS_L** (bundled) | 7 + Interposer | 3 (LSI-bridged) | 3 | Valid, score 0.9666 |
-| **All-In-One (CoW)** | 44 + RW wafer base | 18 (LSI-bridged) | 18 | Valid, score 1.0329 |
+| **All-In-One (CoW)** | 44 + RW wafer base | 18 (LSI-bridged) | 18 | Valid, score 0.9635 |
 
-All cases pass every hard rule with the `expert` placer; the CoW case
-includes dummy-die filling inside the reconstituted-wafer (RW) base layer.
+All cases pass every hard rule with the `expert` placer, which is fully
+deterministic: repeated runs produce identical layouts and scores.
 
 ## Project Structure
 
@@ -191,7 +188,6 @@ includes dummy-die filling inside the reconstituted-wafer (RW) base layer.
 │   │   ├── exporter.py        # PlacementSolution → 3Dblox writer
 │   │   ├── compaction.py      # Interposer sizing / base-layer centering
 │   │   ├── d2d_router.py      # D2D PHY alignment refinement
-│   │   ├── dummy_filler.py    # Dummy-die generation for empty regions
 │   │   └── simple_yaml.py     # Fallback YAML parser (when PyYAML is absent)
 │   ├── viz.py                 # floorplan.png / score_table.png / score.json / score.csv
 │   └── web/app.py             # Optional Flask Web UI (python -m chiplets_floorplan.web.app)

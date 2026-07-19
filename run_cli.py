@@ -24,7 +24,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chiplets_floorplan.core.parser import Parser
 from chiplets_floorplan.core.placer import Placer
 from chiplets_floorplan.core.d2d_router import D2DRouter
-from chiplets_floorplan.core.dummy_filler import DummyFiller
 from chiplets_floorplan.core.compaction import Compaction
 from chiplets_floorplan.core.exporter import Exporter
 from chiplets_floorplan.core.constraints import ConstraintChecker
@@ -45,8 +44,8 @@ Examples:
   # Simulated Annealing placement
   python run_cli.py --dbx CoWoS_L/CoWoS-L.3dbx --connection CoWoS_L/D2D.connection --output out_l/ --algorithm SA
 
-  # Skip optional steps
-  python run_cli.py --dbx design.3dbx --output output/ --skip-dummy --skip-d2d
+  # Skip D2D refinement
+  python run_cli.py --dbx design.3dbx --output output/ --skip-d2d
         """
     )
     parser.add_argument("--dbx", "--3dbx", dest="dbx", required=True,
@@ -57,11 +56,7 @@ Examples:
                         default="Expert", help="Placement algorithm: SA (Simulated Annealing) or Expert (rule-based)")
     parser.add_argument("--sa-iterations", type=int, default=5000, help="SA iterations (only for SA algorithm)")
     parser.add_argument("--enclosure", type=float, default=500.0, help="Minimum interposer enclosure (um)")
-    parser.add_argument("--dummy-min-area", type=float, default=1_000_000, help="Dummy die minimum area (um^2)")
-    parser.add_argument("--dummy-ar-min", type=float, default=1.0, help="Dummy die minimum aspect ratio")
-    parser.add_argument("--dummy-ar-max", type=float, default=2.0, help="Dummy die maximum aspect ratio")
     parser.add_argument("--dpi", type=int, default=150, help="Image resolution DPI")
-    parser.add_argument("--skip-dummy", action="store_true", help="Skip dummy die filling")
     parser.add_argument("--skip-d2d", action="store_true", help="Skip D2D refinement")
     parser.add_argument("--no-images", action="store_true", help="Skip PNG image generation (floorplan + score table)")
     parser.add_argument("--no-json", action="store_true", help="Skip score.json output")
@@ -91,7 +86,7 @@ Examples:
     # ------------------------------------------------------------------
     # 1. Parse input
     # ------------------------------------------------------------------
-    log("\n[1/6] Parsing 3Dblox input...")
+    log("\n[1/5] Parsing 3Dblox input...")
     if not os.path.exists(args.dbx):
         log(f"ERROR: .3dbx file not found: {args.dbx}")
         return 2
@@ -127,7 +122,7 @@ Examples:
     # ------------------------------------------------------------------
     # 2. Placement
     # ------------------------------------------------------------------
-    log(f"\n[2/6] Running placement ({args.algorithm})...")
+    log(f"\n[2/5] Running placement ({args.algorithm})...")
     if args.algorithm == "SA":
         placer = Placer(design, algorithm="SA", sa_iterations=args.sa_iterations, enclosure=args.enclosure)
     else:
@@ -144,7 +139,7 @@ Examples:
     # 3. D2D refinement
     # ------------------------------------------------------------------
     if not args.skip_d2d and design.d2d_connections:
-        log("\n[3/6] Refining D2D PHY alignment...")
+        log("\n[3/5] Refining D2D PHY alignment...")
         pre_refine_score = solution.score
         pre_refine_report = solution.report
         pre_refine_poses = {inst.name: inst.pose.copy() for inst in design.instances}
@@ -168,34 +163,12 @@ Examples:
             solution.score = pre_refine_score
             solution.report = pre_refine_report
     else:
-        log("\n[3/6] Skipping D2D refinement.")
+        log("\n[3/5] Skipping D2D refinement.")
 
     # ------------------------------------------------------------------
-    # 4. Dummy fill
+    # 4. Compaction
     # ------------------------------------------------------------------
-    if not args.skip_dummy:
-        log("\n[4/6] Filling with Dummy Dies...")
-        mbr = design.mbr_of_instances()
-        filler = DummyFiller(design,
-                             min_area_threshold=args.dummy_min_area,
-                             aspect_ratio_range=(args.dummy_ar_min, args.dummy_ar_max))
-        dummies = filler.fill(mbr)
-        solution.dummy_dies = dummies
-        for d in dummies:
-            design.instances.append(d)
-        log(f"  Dummy dies created: {len(dummies)}")
-
-        checker = ConstraintChecker(design)
-        report = checker.check_all()
-        solution.score = report.total_score
-        solution.report = report
-    else:
-        log("\n[4/6] Skipping Dummy Die filling.")
-
-    # ------------------------------------------------------------------
-    # 5. Compaction
-    # ------------------------------------------------------------------
-    log("\n[5/6] Compaction and interposer sizing...")
+    log("\n[4/5] Compaction and interposer sizing...")
     compactor = Compaction(design, min_enclosure=args.enclosure)
     compactor.update_interposer()
     w, h = compactor.compute_interposer_size()
@@ -214,7 +187,7 @@ Examples:
     # ------------------------------------------------------------------
     # 6. Export artifacts
     # ------------------------------------------------------------------
-    log("\n[6/6] Exporting artifacts...")
+    log("\n[5/5] Exporting artifacts...")
 
     # 6a. 3Dblox files
     design_name = design.name or os.path.splitext(os.path.basename(args.dbx))[0]

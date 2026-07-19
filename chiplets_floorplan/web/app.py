@@ -4,7 +4,7 @@ Flask backend for the 3D IC Chiplets Coarse-Placement System (v2).
 Provides REST APIs for:
 - Loading 3Dblox designs
 - Running coarse-placement
-- D2D refinement, Dummy filling, LSI generation
+- D2D refinement, LSI generation
 - Exporting optimized 3Dblox files
 - Real-time score evaluation
 """
@@ -22,7 +22,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from chiplets_floorplan.core.parser import Parser
 from chiplets_floorplan.core.placer import Placer
 from chiplets_floorplan.core.d2d_router import D2DRouter
-from chiplets_floorplan.core.dummy_filler import DummyFiller
 from chiplets_floorplan.core.compaction import Compaction
 from chiplets_floorplan.core.exporter import Exporter
 from chiplets_floorplan.core.constraints import ConstraintChecker
@@ -56,9 +55,6 @@ class SessionState:
         self.config = {
             "enclosure": 500.0,
             "sa_iterations": 5000,
-            "dummy_min_area": 1_000_000,
-            "dummy_ar_min": 1.0,
-            "dummy_ar_max": 2.0,
         }
 
 state = SessionState()
@@ -499,46 +495,6 @@ def generate_lsi():
             })
         else:
             return jsonify({'success': False, 'error': 'Could not generate LSI'})
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)})
-
-# ------------------------------------------------------------------
-# Calculate Dummy Dies
-# ------------------------------------------------------------------
-
-@app.route('/api/calculate_dummy', methods=['POST'])
-def calculate_dummy():
-    try:
-        if not state.design:
-            return jsonify({'success': False, 'error': 'No design loaded'})
-        
-        data = request.get_json() or {}
-        min_area = data.get('min_area', state.config['dummy_min_area'])
-        ar_min = data.get('ar_min', state.config['dummy_ar_min'])
-        ar_max = data.get('ar_max', state.config['dummy_ar_max'])
-        
-        design = state.design
-        mbr = design.mbr_of_instances()
-        
-        filler = DummyFiller(design, min_area_threshold=min_area, 
-                            aspect_ratio_range=(ar_min, ar_max))
-        dummies = filler.fill(mbr)
-        
-        # Add to design
-        for dummy in dummies:
-            design.instances.append(dummy)
-        
-        # Re-score after refinement
-        checker = ConstraintChecker(design)
-        report = checker.check_all(dummies)
-        
-        return jsonify({
-            'success': True,
-            'dummy_count': len(dummies),
-            'score': report.total_score,
-            'valid': report.is_valid
-        })
     except Exception as e:
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)})

@@ -9,21 +9,20 @@ python run_cli.py --dbx CoWoS_S/CoWoS-S.3dbx --connection CoWoS_S/D2D.connection
 # SA 算法
 python run_cli.py --dbx CoWoS_L/CoWoS-L.3dbx --connection CoWoS_L/D2D.connection --output out_l/ --algorithm SA
 
-# 跳过可选步骤（D2D refinement + Dummy filling）
-python run_cli.py --dbx design.3dbx --connection D2D.connection --output output/ --skip-dummy --skip-d2d
+# 跳过 D2D refinement
+python run_cli.py --dbx design.3dbx --connection D2D.connection --output output/ --skip-d2d
 ```
 
 ## 参数说明
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `--dbx` | 必需 | - | 输入 `.3dbx` 文件路径 |
+| `--dbx` | 必需 | - | 输入 `.3dbx` 文件路径（等价别名 `--3dbx`） |
 | `--connection` | 可选 | "" | D2D connection 文件路径 (`.connection`) |
 | `--output` | 可选 | `output` | 输出目录 |
-| `--algorithm` | 可选 | `Expert` | Placer 算法: `SA` / `Expert` |
+| `--algorithm` | 可选 | `Expert` | Placer 算法: `SA` / `Expert`（等价别名 `--placer`，大小写不敏感） |
 | `--sa-iterations` | 可选 | `5000` | SA 迭代次数（仅 SA 算法生效） |
 | `--enclosure` | 可选 | `500.0` | Interposer 最小包围边距 (um) |
-| `--skip-dummy` | 可选 | False | 跳过 Dummy die 填充 |
 | `--skip-d2d` | 可选 | False | 跳过 D2D PHY 对齐优化 |
 | `--no-images` | 可选 | False | 跳过 PNG 图像生成 |
 | `--no-json` | 可选 | False | 跳过 `score.json` 输出 |

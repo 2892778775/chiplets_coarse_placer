@@ -488,15 +488,6 @@ function runPlacement() {
         });
 }
 
-function calculateDummy() {
-    showMessage('Calculating dummy dies...', 'info');
-    fetch('/api/calculate_dummy', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-        .then(r => r.json()).then(data => {
-            if (data.success) { showMessage(data.dummy_count + ' dummies created', 'success'); refreshData(); }
-            else showMessage(data.error, 'error');
-        });
-}
-
 function doCompaction() {
     showMessage('Running compaction...', 'info');
     fetch('/api/compaction', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
@@ -727,8 +718,7 @@ function updateScorePanel() {
             'horizontal_symmetry': 'Horizontal Symmetry',
             'interposer_area': 'Interposer Area',
             'aspect_ratio': 'Aspect Ratio',
-            'd2d_length': 'D2D Length',
-            'dummy_minimize': 'Dummy Minimize'
+            'd2d_length': 'D2D Length'
         };
         
         // Soft rules with formula details
@@ -774,9 +764,6 @@ function updateScorePanel() {
                                 varVals += `<br>${c.conn}: dist=${c.manhattan_dist}`;
                             }
                         }
-                    } else if (key === 'dummy_minimize' && detail.values) {
-                        varDesc = 'dummy_area=total dummy die area; real_area=total real chiplet area';
-                        varVals = `dummy_area=${detail.values.dummy_area}, real_area=${detail.values.real_area}, ratio=${detail.values.ratio}`;
                     }
                     
                     html += `<tr><td><b>${name}</b><br><small style="color:#888">weight=${(scoreData.weights && scoreData.weights[key]) || 'N/A'}</small></td>`;

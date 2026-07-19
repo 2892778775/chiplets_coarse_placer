@@ -346,7 +346,6 @@ class PlacementSolution:
     design: DesignModel
     instance_poses: Dict[str, InstancePose]  # {inst_name: pose}
     interposer_size: Tuple[float, float] = (0.0, 0.0)
-    dummy_dies: List[ChipletInst] = field(default_factory=list)
     score: float = 0.0
     report: ViolationReport = field(default_factory=ViolationReport)
 

@@ -564,7 +564,7 @@ class ExpertPlacer(BasePlacer):
                 inst = self.design.get_instance(name)
                 best_dominant = None
                 best_dist = float('inf')
-                for dom_name in self.dominant_names:
+                for dom_name in sorted(self.dominant_names):
                     dom_inst = self.design.get_instance(dom_name)
                     if dom_inst and inst:
                         dist = math.hypot(inst.pose.x - dom_inst.pose.x, inst.pose.y - dom_inst.pose.y)
@@ -648,7 +648,7 @@ class ExpertPlacer(BasePlacer):
                     self.groups[g_idx].slave_names.append(slave_name)
                     self.instance_to_group[slave_name] = g_idx
 
-        for lsi_name in self.lsi_names:
+        for lsi_name in sorted(self.lsi_names):
             for conn in self.design.d2d_connections:
                 if conn.lsi_inst == lsi_name:
                     src_group = self.instance_to_group.get(conn.source_inst)
@@ -669,7 +669,10 @@ class ExpertPlacer(BasePlacer):
     def _step3_isolate_instances_plan(self) -> None:
         """Distribute isolated instances (IOD, IPD, DUMMY) evenly across groups."""
         isolated_by_type: Dict[str, List[str]] = {}
-        for name in self.isolated_names:
+        # Sort: set iteration order varies with PYTHONHASHSEED, which would
+        # make the group assignment (and hence the final layout and score)
+        # differ between runs of an otherwise deterministic placer.
+        for name in sorted(self.isolated_names):
             inst = self.design.get_instance(name)
             ref = inst.reference
             if ref not in isolated_by_type:

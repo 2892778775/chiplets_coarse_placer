@@ -10,7 +10,6 @@ from .geometry import GeometryEngine
 # from .constraints import ConstraintChecker
 # from .placer import Placer
 # from .d2d_router import D2DRouter
-# from .dummy_filler import DummyFiller
 # from .compaction import Compaction
 # from .exporter import Exporter
 

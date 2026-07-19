@@ -52,8 +52,8 @@ class Exporter:
         exported_files.append(dbv_path)
 
         # 3. Export individual chiplet .3dbv, .3dbo, .omap files.
-        # Dummy defs must be exported as well: dummy instances are listed in
-        # the main .3dbx, so their references must resolve on re-parse.
+        # Every def referenced by an instance in the main .3dbx must be
+        # exported so the design re-parses cleanly.
         for chiplet_name, chiplet_def in self.design.chiplet_defs.items():
             chiplet_dbv = os.path.join(output_dir, f"{chiplet_name}.3dbv")
             self._write_chiplet_3dbv(chiplet_dbv, chiplet_def)
