@@ -93,7 +93,7 @@
             <div class="canvas-section">
                 <div class="canvas-top-controls">
                     <button class="btn btn-primary" onclick="runPlacement()">⚡ Run Placement</button>
-                    <button class="btn btn-warning" onclick="doCompaction()">📐 Compaction</button>
+                    <button class="btn btn-warning" onclick="doFineTune()">🎯 FineTune</button>
                 </div>
                 <div class="canvas-main-area">
                     <div class="canvas-side-controls">
@@ -130,6 +130,8 @@
                     </div>
                 </div>
                 <div class="table-footer">
+                    <button class="btn btn-info" onclick="setAllVisible(true)" title="Make all instances visible (default)">👁 All Visible</button>
+                    <button class="btn btn-info" onclick="setAllVisible(false)" title="Make all instances invisible (fixed)">🚫 All Invisible</button>
                     <button class="btn btn-info" onclick="refreshData()">🔄 Refresh</button>
                 </div>
             </div>

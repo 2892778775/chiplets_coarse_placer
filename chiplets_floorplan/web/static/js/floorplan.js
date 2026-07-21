@@ -24,15 +24,25 @@ let dragStartInstY = 0;
 let scoreData = null;
 let referenceInstance = "";
 
-const TYPE_COLORS = {
-    'SOC': '#3498db',
-    'HBM': '#2ecc71',
-    'Interposer': '#e0e0e0',
-    'LSI': '#f39c12',
-    'LSI1': '#e67e22',
-    'LSI2': '#d35400',
-    'Dummy': '#bdc3c7'
-};
+// Instances sharing the same reference chiplet (module) share one color.
+// Colors are assigned deterministically from sorted module names.
+const REFERENCE_PALETTE = [
+    '#3498db', '#2ecc71', '#9b59b6', '#e67e22', '#1abc9c',
+    '#e74c3c', '#f1c40f', '#34495e', '#16a085', '#d35400',
+    '#8e44ad', '#27ae60', '#2980b9', '#c0392b'
+];
+let moduleColorMap = {};
+
+function rebuildModuleColors() {
+    moduleColorMap = {};
+    Object.keys(chipletDefs).sort().forEach((m, i) => {
+        moduleColorMap[m] = REFERENCE_PALETTE[i % REFERENCE_PALETTE.length];
+    });
+}
+
+function colorForModule(module) {
+    return moduleColorMap[module] || '#9b59b6';
+}
 
 const HARD_VIOLATION_COLOR = 'rgba(231, 76, 60, 0.3)';
 const D2D_LINE_COLOR = '#e74c3c';
@@ -184,10 +194,7 @@ function drawChiplet(inst, isInterposer) {
     if (inst.flip === 'MX') ctx.scale(1, -1);
     if (inst.flip === 'MY') ctx.scale(-1, 1);
     
-    let color = TYPE_COLORS[inst.module] || '#9b59b6';
-    for (const [key, value] of Object.entries(TYPE_COLORS)) {
-        if (inst.module.startsWith(key)) { color = value; break; }
-    }
+    let color = colorForModule(inst.module);
     if (isInterposer) color = '#f0f0f0';
     
     // Reference instance highlight
@@ -319,38 +326,40 @@ function canvasMouseDown(e) {
     const x = e.clientX - rect.left, y = e.clientY - rect.top;
     const now = Date.now();
     const clickedInst = findInstanceAt(x, y);
-    const isDoubleClick = (now - lastClickTime < 300) && (lastClickTarget === clickedInst);
+    const isDoubleClick = clickedInst && (now - lastClickTime < 300) && (lastClickTarget === clickedInst);
     lastClickTime = now;
     lastClickTarget = clickedInst;
 
-    if (clickedInst) {
-        // Double-click: toggle selection
-        if (isDoubleClick) {
-            if (selectedInstances.has(clickedInst)) {
-                selectedInstances.delete(clickedInst);
-            } else {
-                selectedInstances.add(clickedInst);
-            }
-            drawCanvas(); updateTables(); return;
-        }
-        // Single-click: start drag if part of selection, or select new if none selected
-        if (!selectedInstances.has(clickedInst) && selectedInstances.size > 0) {
-            selectedInstances.clear();
-            selectedInstances.add(clickedInst);
-        } else if (selectedInstances.size === 0) {
+    if (isDoubleClick) {
+        // Double-click toggles this instance's selection membership;
+        // other selected instances stay selected (multi-select).
+        if (selectedInstances.has(clickedInst)) {
+            selectedInstances.delete(clickedInst);
+        } else {
             selectedInstances.add(clickedInst);
         }
-        // Start drag (skip reference instance)
+        // Cancel any drag started by the first click of this double-click.
+        isDragging = false;
         dragStartPositions = {};
-        for (const name of selectedInstances) {
-            const inst = chipletInstances.find(i => i.name === name);
-            if (inst && inst.name !== referenceInstance) {
-                dragStartPositions[name] = { x: inst.x, y: inst.y };
+        drawCanvas(); updateTables(); return;
+    }
+
+    if (clickedInst) {
+        // Single click on an instance: never changes the selection, so a
+        // multi-selection survives. Dragging only starts when the clicked
+        // instance is already part of the selection.
+        if (selectedInstances.has(clickedInst)) {
+            dragStartPositions = {};
+            for (const name of selectedInstances) {
+                const inst = chipletInstances.find(i => i.name === name);
+                if (inst && inst.name !== referenceInstance && inst.visible) {
+                    dragStartPositions[name] = { x: inst.x, y: inst.y };
+                }
             }
-        }
-        if (Object.keys(dragStartPositions).length > 0) {
-            isDragging = true; dragStartX = x; dragStartY = y;
-            canvas.style.cursor = 'grabbing';
+            if (Object.keys(dragStartPositions).length > 0) {
+                isDragging = true; dragStartX = x; dragStartY = y;
+                canvas.style.cursor = 'grabbing';
+            }
         }
         drawCanvas(); updateTables();
     } else {
@@ -457,6 +466,7 @@ function refreshData() {
             chipletInstances = data.instances || [];
             chipletDefs = {};
             for (const def of data.chiplet_defs || []) chipletDefs[def.name] = def;
+            rebuildModuleColors();
             d2dConnections = data.connections || [];
             scoreData = data.score;
             referenceInstance = data.reference_instance || '';
@@ -490,13 +500,42 @@ function runPlacement() {
         });
 }
 
-function doCompaction() {
-    showMessage('Running compaction...', 'info');
-    fetch('/api/compaction', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+function doFineTune() {
+    showMessage('Running FineTune...', 'info');
+    fetch('/api/finetune', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
         .then(r => r.json()).then(data => {
-            if (data.success) { showMessage('Interposer: ' + data.interposer_size[0].toFixed(0) + ' x ' + data.interposer_size[1].toFixed(0), 'success'); refreshData(); }
-            else showMessage(data.error, 'error');
+            if (data.success) {
+                const modeMsg = data.mode === 'pack-visible'
+                    ? ('packed ' + data.moved + ' visible instance(s)')
+                    : 'compaction only (all instances visible)';
+                showMessage('FineTune: ' + modeMsg + ' | valid=' + data.valid + ' | score=' + data.score.toFixed(3),
+                            data.valid ? 'success' : 'error');
+                refreshData();
+            } else {
+                showMessage(data.error, 'error');
+            }
+        })
+        .catch(err => {
+            showMessage('FineTune failed: ' + err.message, 'error');
         });
+}
+
+function setAllVisible(visible) {
+    fetch('/api/set_visibility_all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visible: visible })
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            if (!visible) selectedInstances.clear();
+            showMessage(visible ? 'All instances visible' : 'All instances invisible (fixed in place)', 'success');
+            refreshData();
+        } else {
+            showMessage(data.error, 'error');
+        }
+    }).catch(err => {
+        showMessage('Visibility change failed: ' + err.message, 'error');
+    });
 }
 
 async function exportDesign() {
@@ -726,7 +765,8 @@ function updateInstancesTable() {
         const isRef = (inst.name === referenceInstance);
         const refBadge = isRef ? ' <span title="Reference (coordinate system origin)">⭐</span>' : '';
         const refBtn = isRef ? '<span>⭐</span>' : `<button onclick="setReference('${inst.name}')">Set Ref</button>`;
-        const disabledAttr = isRef ? 'disabled' : '';
+        // Invisible instances are fixed: their coordinates/state cannot be edited
+        const disabledAttr = (isRef || !inst.visible) ? 'disabled' : '';
         row.innerHTML = `<td><input type="checkbox" ${inst.visible ? 'checked' : ''} onchange="toggleVisible('${inst.name}', this.checked)"></td><td>${inst.name}${refBadge}</td><td>${inst.module}</td><td>${inst.group || ''}</td><td>${refBtn}</td><td><input type="number" value="${inst.x.toFixed(0)}" onchange="updateInstCoord('${inst.name}', 'x', this.value)" ${disabledAttr}></td><td><input type="number" value="${inst.y.toFixed(0)}" onchange="updateInstCoord('${inst.name}', 'y', this.value)" ${disabledAttr}></td><td><input type="number" value="${inst.z}" onchange="updateInstCoord('${inst.name}', 'z', this.value)"></td><td>${inst.flip}</td><td>${inst.mz ? '▼' : '▲'}</td><td>${inst.orientation}</td>`;
         tbody.appendChild(row);
     }
@@ -837,6 +877,11 @@ function toggleVisible(name, visible) {
     // Update local state immediately so table shows correct value on re-render
     const inst = chipletInstances.find(i => i.name === name);
     if (inst) inst.visible = visible;
+    // A hidden instance leaves the selection and becomes fixed
+    if (!visible && selectedInstances.has(name)) {
+        selectedInstances.delete(name);
+        drawCanvas(); updateTables();
+    }
     // Submit to backend but do NOT refresh canvas automatically
     fetch('/api/update_instance', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, visible }) });

@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from chiplets_floorplan.core.parser import Parser
 from chiplets_floorplan.core.placer import ExpertPlacer
+from chiplets_floorplan.core.finetune import finetune_visible
 from chiplets_floorplan.core.d2d_router import D2DRouter
 from chiplets_floorplan.core.compaction import Compaction
 from chiplets_floorplan.core.exporter import Exporter
@@ -320,6 +321,12 @@ def update_instance():
         # Reference instance cannot be moved/rotated/flipped by user (only Compaction)
         is_ref = (inst_name == state.reference_instance)
         
+        # Invisible instances are fixed in their current state: only the
+        # visible flag itself may be changed for them.
+        if not inst.visible and any(k in data for k in ('x', 'y', 'z', 'orientation', 'flip', 'mz')):
+            return jsonify({'success': False,
+                            'error': f'Instance {inst_name} is invisible (fixed); make it visible first'})
+        
         if 'x' in data:
             if is_ref:
                 return jsonify({'success': False, 'error': f'Cannot move reference instance {inst_name}'})
@@ -547,6 +554,72 @@ def compaction():
             'success': True,
             'interposer_size': [w, h],
             'interposer_origin': [ox, oy]
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)})
+
+# ------------------------------------------------------------------
+# Bulk visibility (all instances visible / invisible)
+# ------------------------------------------------------------------
+
+@app.route('/api/set_visibility_all', methods=['POST'])
+def set_visibility_all():
+    try:
+        if not state.design:
+            return jsonify({'success': False, 'error': 'No design loaded'})
+        
+        data = request.get_json() or {}
+        visible = bool(data.get('visible', True))
+        for inst in state.design.instances:
+            inst.visible = visible
+        return jsonify({
+            'success': True,
+            'visible': visible,
+            'count': len(state.design.instances)
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)})
+
+# ------------------------------------------------------------------
+# FineTune: pack visible instances together (translation only)
+# ------------------------------------------------------------------
+
+@app.route('/api/finetune', methods=['POST'])
+def finetune():
+    try:
+        if not state.design:
+            return jsonify({'success': False, 'error': 'No design loaded'})
+        
+        design = state.design
+        non_base = [i for i in design.instances if not design.is_base_instance(i)]
+        # Partial visibility: at least one non-base instance is invisible.
+        partial = any(not i.visible for i in non_base)
+        
+        moved = 0
+        if partial:
+            if not any(i.visible for i in non_base):
+                return jsonify({'success': False,
+                                'error': 'No visible instances to fine-tune'})
+            moved = finetune_visible(design)
+        
+        # Interposer sizing + fresh constraint check (same as compaction).
+        compactor = Compaction(design, min_enclosure=state.config['enclosure'])
+        compactor.update_interposer()
+        w, h = compactor.compute_interposer_size()
+        
+        checker = ConstraintChecker(design)
+        report = checker.check_all()
+        
+        return jsonify({
+            'success': True,
+            'mode': 'pack-visible' if partial else 'compaction',
+            'moved': moved,
+            'interposer_size': [w, h],
+            'valid': report.is_valid,
+            'score': report.total_score,
+            'hard_violations': report.hard_violations
         })
     except Exception as e:
         traceback.print_exc()
